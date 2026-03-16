@@ -8,7 +8,7 @@ const examples = [
     id: "grinder",
     label: "DEWALT FlexVolt Grinder",
     customer: "West Coast Marine",
-    query: "Flexvolt Perform & Protect Max Brushless Cordless Grinder",
+    query: "Price Flexvolt Perform & Protect Max Brushless Cordless Grinder",
     brand: "DEWALT",
     partNumber: "DCG418B",
     category: "Power Tools / Grinders",

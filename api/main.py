@@ -22,13 +22,13 @@ app.add_middleware(
 SERP_API_KEY = os.getenv("SERP_API_KEY")
 
 EXAMPLES = {
-    "Flexvolt Perform & Protect Max Brushless Cordless Grinder": {
+    "Price Flexvolt Perform & Protect Max Brushless Cordless Grinder": {
         "preferredResults": [
             {
                 "vendor": "SCN Industrial",
                 "source": "Preferred Supplier Feed",
                 "sourceType": "preferred",
-                "title": "DEWALT FLEXVOLT Perform & Protect Max Brushless Cordless Grinder, Tool Only, 4-1/2 - 6 in, 60 V, DCG418B",
+                "title": "Price DEWALT FLEXVOLT Perform & Protect Max Brushless Cordless Grinder, Tool Only, 4-1/2 - 6 in, 60 V, DCG418B",
                 "sku": "UAK055 / DCG418B",
                 "price": "$329.00",
                 "priceValue": 329.00,
