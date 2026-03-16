@@ -1,17 +1,127 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-function App() {
-  const [results, setResults] = useState([]);
-  const [query, setQuery] = useState("3M SecureFit SF201AF clear anti-fog glasses");
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
-    const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const examples = [
+  {
+    id: "grinder",
+    label: "DEWALT FlexVolt Grinder",
+    customer: "West Coast Marine",
+    query: "Flexvolt Perform & Protect Max Brushless Cordless Grinder",
+    brand: "DEWALT",
+    partNumber: "DCG418B",
+    category: "Power Tools / Grinders",
+    summary:
+      "This example shows how ProBuy compares a preferred supplier feed against live market results and flags looser Google matches for manual review.",
+    selectedSource: "SCN Industrial",
+    selectedCost: "$329.00",
+    targetMargin: "18%",
+    suggestedSellPrice: "$401.38"
+  },
+  {
+    id: "glasses",
+    label: "3M SecureFit Glasses",
+    customer: "West Coast Marine",
+    query: "3M SecureFit SF201AF clear anti-fog glasses",
+    brand: "3M",
+    partNumber: "SF201AF",
+    category: "PPE / Safety Eyewear",
+    summary:
+      "This example shows how ProBuy separates exact product matches from broader Google-discovered market references.",
+    selectedSource: "SCN Industrial",
+    selectedCost: "$13.10",
+    targetMargin: "32%",
+    suggestedSellPrice: "$19.25"
+  }
+];
+
+function App() {
+  const [selectedExampleId, setSelectedExampleId] = useState("grinder");
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [apiError, setApiError] = useState("");
+
+  const selected = useMemo(
+    () => examples.find((item) => item.id === selectedExampleId) || examples[0],
+    [selectedExampleId]
+  );
+
   useEffect(() => {
-    fetch(`${API_URL}/search?product=${encodeURIComponent(query)}`)
-      .then((res) => res.json())
-      .then((data) => setResults(data.results || []))
-      .catch((err) => console.error("API error:", err));
-  }, [query]);
+    const controller = new AbortController();
+
+    async function loadResults() {
+      setLoading(true);
+      setApiError("");
+
+      try {
+        const res = await fetch(
+          `${API_URL}/search?product=${encodeURIComponent(selected.query)}`,
+          { signal: controller.signal }
+        );
+
+        if (!res.ok) {
+          throw new Error(`Backend returned ${res.status}`);
+        }
+
+        const data = await res.json();
+        setResults(Array.isArray(data.results) ? data.results : []);
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          console.error("API error:", err);
+          setApiError(err.message || "Could not load results");
+          setResults([]);
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadResults();
+
+    return () => controller.abort();
+  }, [selected.query]);
+
+  const toneClasses = {
+    preferred: "pill-source preferred",
+    google: "pill-source google",
+    competitor: "pill-source competitor",
+    review: "pill-source review"
+  };
+
+  const providerToneClasses = {
+    preferred: "provider preferred",
+    google: "provider google",
+    competitor: "provider competitor",
+    review: "provider review"
+  };
+
+  const providers = [
+    {
+      name: "SCN Industrial Feed",
+      weight: "+18",
+      description: "Preferred supplier pricing and strongest operational trust",
+      tone: "preferred"
+    },
+    {
+      name: "Google SERP / Shopping",
+      weight: "+4",
+      description: "Live market discovery for pricing context and competitor visibility",
+      tone: "google"
+    },
+    {
+      name: "Retail Competitors",
+      weight: "+2",
+      description: "Commercial benchmarks such as KMS Tools or similar listings",
+      tone: "competitor"
+    },
+    {
+      name: "Manual Review Queue",
+      weight: "Flag",
+      description: "Low-confidence results that should not be quoted directly",
+      tone: "review"
+    }
+  ];
 
   const scorePill = (score) => {
     if (score >= 90) return "pill green";
@@ -25,6 +135,15 @@ function App() {
     return "pill gray";
   };
 
+  const sourceTypeLabel = (type) => {
+    if (type === "preferred") return "Safe to quote";
+    if (type === "review") return "Review before quote";
+    return "Benchmark / validate";
+  };
+
+  const bestMarketPrice =
+    results.length > 0 ? results[results.length - 1]?.price || "$--" : "$--";
+
   return (
     <div className="page">
       <div className="container">
@@ -33,46 +152,63 @@ function App() {
             <div className="tag">ProBuy Pricing Console</div>
             <h1>AI-assisted sourcing and pricing search</h1>
             <p>
-              Search industrial and safety products across supplier feeds and live market
-              sources, compare vendor pricing, and rank listings using ProBuy business priority,
-              relevance, and confidence.
+              Compare preferred supplier pricing against live Google market discovery,
+              show users exactly where each price came from, and highlight which results
+              are safe to quote.
             </p>
           </div>
-          <div className="top-actions">
-            <button className="secondary-btn">Save Quote View</button>
-            <button className="primary-btn">Approve Sell Price</button>
+
+          <div className="help-card">
+            <div className="help-title">How to read this screen</div>
+            <div>
+              Green = trusted supplier feed, blue = Google-discovered result,
+              amber = market benchmark, red = review before quoting.
+            </div>
           </div>
         </div>
 
         <div className="search-box">
-          <input value={query} onChange={(e) => setQuery(e.target.value)} />
-          <button className="primary-btn">Search</button>
+          <input value={selected.query} readOnly />
+          <select
+            value={selectedExampleId}
+            onChange={(e) => setSelectedExampleId(e.target.value)}
+          >
+            {examples.map((example) => (
+              <option key={example.id} value={example.id}>
+                {example.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="demo-note">
+          <strong>Demo explanation:</strong> {selected.summary}
         </div>
 
         <div className="summary-grid">
           <div className="summary-card">
             <div className="label">Customer</div>
-            <div className="value">West Coast Marine</div>
+            <div className="value">{selected.customer}</div>
           </div>
           <div className="summary-card">
             <div className="label">Brand</div>
-            <div className="value">3M</div>
+            <div className="value">{selected.brand}</div>
           </div>
           <div className="summary-card">
             <div className="label">Part Number</div>
-            <div className="value">SF201AF</div>
+            <div className="value">{selected.partNumber}</div>
           </div>
           <div className="summary-card">
             <div className="label">Category</div>
-            <div className="value">PPE / Safety Eyewear</div>
+            <div className="value">{selected.category}</div>
           </div>
           <div className="summary-card">
             <div className="label">Results</div>
-            <div className="value">{results.length} listings</div>
+            <div className="value">{loading ? "Loading..." : `${results.length} listings`}</div>
           </div>
           <div className="summary-card">
-            <div className="label">Lowest seen</div>
-            <div className="value">$11.80</div>
+            <div className="label">Best market price</div>
+            <div className="value">{bestMarketPrice}</div>
           </div>
         </div>
 
@@ -80,42 +216,81 @@ function App() {
           <div className="panel">
             <div className="panel-header">
               <div>
-                <h2>Ranked supplier listings</h2>
+                <h2>Ranked supplier and market listings</h2>
                 <p>
-                  Weighted by search relevance, ProBuy supplier priority, exact part-number match,
-                  freshness, availability, and commercial value.
+                  Each row clearly identifies whether the price came from a preferred
+                  supplier feed, a Google result, a competitor benchmark, or a low-confidence
+                  review queue.
                 </p>
               </div>
             </div>
 
+            {apiError && (
+              <div className="error-box">
+                <strong>API error:</strong> {apiError}
+              </div>
+            )}
+
+            {loading && (
+              <div className="info-box">
+                Loading live pricing and market benchmark results...
+              </div>
+            )}
+
+            {!loading && results.length === 0 && !apiError && (
+              <div className="info-box">
+                No results returned from the backend yet.
+              </div>
+            )}
+
             <div className="results-list">
               {results.map((item, idx) => (
-                <div className="result-row" key={idx}>
+                <div className="result-row" key={`${item.vendor}-${idx}`}>
                   <div className="result-main">
                     <div className="result-top">
                       <span className="vendor-name">{item.vendor}</span>
-                      <span className="badge">{item.badge}</span>
-                      <span className={scorePill(item.score)}>Score {item.score}</span>
-                      <span className={confidencePill(item.confidence)}>
-                        {item.confidence} confidence
+
+                      <span
+                        className={
+                          toneClasses[item.sourceType] || "pill-source google"
+                        }
+                      >
+                        {item.source || "Source"}
+                      </span>
+
+                      <span className={scorePill(item.score || 0)}>
+                        Score {item.score ?? "--"}
+                      </span>
+
+                      <span className={confidencePill(item.confidence || "Low")}>
+                        {item.confidence || "Low"} confidence
                       </span>
                     </div>
 
                     <div className="title">{item.title}</div>
 
-                    <div className="meta">
-                      <span>MPN/SKU: {item.sku}</span>
-                      <span>{item.stock}</span>
-                      <span>Updated {item.freshness}</span>
+                    <div className="detail-grid">
+                      <div>MPN / SKU: {item.sku || "Validation needed"}</div>
+                      <div>Availability: {item.stock || "Unknown"}</div>
+                      <div>Freshness: {item.freshness || "Unknown"}</div>
+                      <div>Source note: {item.sourceNote || "N/A"}</div>
+                    </div>
+
+                    <div className="why-box">
+                      <strong>Why it ranked here:</strong> {item.why || "No explanation available"}
                     </div>
                   </div>
 
                   <div className="result-price">
-                    <div className="price">${item.price.toFixed(2)}</div>
-                    <div className="subtext">each / CAD</div>
-                    <div className="row-actions">
-                      <button className="secondary-btn small">Open source</button>
-                      <button className="primary-btn small">Use in quote</button>
+                    <div className="price">{item.price || "$--"}</div>
+                    <div className="subtext">estimated listing price / CAD</div>
+
+                    <div
+                      className={
+                        toneClasses[item.sourceType] || "pill-source google"
+                      }
+                    >
+                      {sourceTypeLabel(item.sourceType)}
                     </div>
                   </div>
                 </div>
@@ -127,73 +302,55 @@ function App() {
             <div className="panel">
               <h2>AI sourcing insight</h2>
               <div className="info-box">
-                SCN Industrial is ranked #1 for ProBuy because it has an exact manufacturer part
-                match, strong freshness, and the highest supplier priority. Grainger Canada is a
-                close market benchmark. Amazon Business is cheaper but the listing confidence is
-                low and should not be used without manual review.
+                {selected.id === "grinder"
+                  ? "SCN Industrial ranks first because it is your preferred source and the product identity is strongest. Google-discovered results are useful for market context, but they should be treated as benchmarks unless the product page confirms the exact model and kit contents."
+                  : "SCN Industrial remains the best operational choice because it combines exact product identity with supplier priority. Google results improve price awareness, but weaker matches should not be used directly for quoting without product verification."}
               </div>
             </div>
 
             <div className="panel">
-              <h2>Quote pricing panel</h2>
+              <h2>Quote guidance</h2>
               <div className="summary-grid two-cols">
                 <div className="summary-card">
                   <div className="label">Selected source</div>
-                  <div className="value">SCN Industrial</div>
+                  <div className="value">{selected.selectedSource}</div>
                 </div>
                 <div className="summary-card">
                   <div className="label">Source cost</div>
-                  <div className="value">$13.10</div>
+                  <div className="value">{selected.selectedCost}</div>
                 </div>
                 <div className="summary-card">
                   <div className="label">Target margin</div>
-                  <div className="value">32%</div>
+                  <div className="value">{selected.targetMargin}</div>
                 </div>
                 <div className="summary-card">
                   <div className="label">Suggested sell price</div>
-                  <div className="value">$19.25</div>
+                  <div className="value">{selected.suggestedSellPrice}</div>
                 </div>
               </div>
 
-              <div className="input-group">
-                <label>Final approved quote price</label>
-                <input value="$19.25" readOnly />
+              <div className="recommend-box">
+                <strong>Recommended demo message:</strong> Use preferred supplier pricing
+                for quoting, and use Google-discovered results as market intelligence
+                unless the exact product page is verified.
               </div>
-
-              <button className="primary-btn full">Save pricing decision</button>
             </div>
 
             <div className="panel">
-              <h2>Supplier weights</h2>
+              <h2>Source legend and weighting</h2>
               <div className="providers">
-                <div className="provider-row">
-                  <div>
-                    <div className="provider-name">SCN Industrial Feed</div>
-                    <div className="subtext">Status: Active</div>
+                {providers.map((provider) => (
+                  <div
+                    key={provider.name}
+                    className={providerToneClasses[provider.tone] || "provider google"}
+                  >
+                    <div>
+                      <div className="provider-name">{provider.name}</div>
+                      <div className="provider-description">{provider.description}</div>
+                    </div>
+                    <div className="weight">{provider.weight}</div>
                   </div>
-                  <div className="weight">+18</div>
-                </div>
-                <div className="provider-row">
-                  <div>
-                    <div className="provider-name">Grainger Canada</div>
-                    <div className="subtext">Status: Active</div>
-                  </div>
-                  <div className="weight">+10</div>
-                </div>
-                <div className="provider-row">
-                  <div>
-                    <div className="provider-name">Acklands-Grainger</div>
-                    <div className="subtext">Status: Active</div>
-                  </div>
-                  <div className="weight">+8</div>
-                </div>
-                <div className="provider-row">
-                  <div>
-                    <div className="provider-name">Google Shopping / DataForSEO</div>
-                    <div className="subtext">Status: Active</div>
-                  </div>
-                  <div className="weight">+4</div>
-                </div>
+                ))}
               </div>
             </div>
           </div>
