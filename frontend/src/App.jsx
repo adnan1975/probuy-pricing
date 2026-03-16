@@ -5,8 +5,9 @@ function App() {
   const [results, setResults] = useState([]);
   const [query, setQuery] = useState("3M SecureFit SF201AF clear anti-fog glasses");
 
+    const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
   useEffect(() => {
-    fetch(`http://127.0.0.1:8000/search?product=${encodeURIComponent(query)}`)
+    fetch(`${API_URL}/search?product=${encodeURIComponent(query)}`)
       .then((res) => res.json())
       .then((data) => setResults(data.results || []))
       .catch((err) => console.error("API error:", err));
