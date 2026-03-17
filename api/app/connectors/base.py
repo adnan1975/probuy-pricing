@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from app.models.search import SearchResult
+from app.models.search import NormalizedResult
 
 
 class BaseConnector(ABC):
@@ -8,5 +8,5 @@ class BaseConnector(ABC):
     source_label: str
 
     @abstractmethod
-    def search(self, query: str) -> list[SearchResult]:
+    async def search(self, query: str) -> list[NormalizedResult]:
         """Return normalized search results for the provided query."""
