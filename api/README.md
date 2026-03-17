@@ -11,12 +11,12 @@ FastAPI backend for connector-based price discovery.
 
 ## Connectors
 
-Implemented connectors:
+Implemented direct connectors:
 
-- White Cap
-- KMS Tools
-- Canadian Tire
-- Home Depot
+- `app/connectors/whitecap_connector.py`
+- `app/connectors/kms_connector.py`
+- `app/connectors/canadiantire_connector.py`
+- `app/connectors/homedepot_connector.py`
 
 All connectors currently return mock data from a shared catalog to keep the API stable while live scraping integrations are developed.
 

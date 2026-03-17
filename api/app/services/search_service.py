@@ -1,9 +1,9 @@
 from statistics import mean
 
-from app.connectors.canadian_tire import CanadianTireConnector
-from app.connectors.home_depot import HomeDepotConnector
-from app.connectors.kms_tools import KMSToolsConnector
-from app.connectors.white_cap import WhiteCapConnector
+from app.connectors.canadiantire_connector import CanadianTireConnector
+from app.connectors.homedepot_connector import HomeDepotConnector
+from app.connectors.kms_connector import KMSConnector
+from app.connectors.whitecap_connector import WhiteCapConnector
 from app.models.search import SearchAnalysis, SearchResponse
 
 
@@ -11,7 +11,7 @@ class SearchService:
     def __init__(self) -> None:
         self.connectors = [
             WhiteCapConnector(),
-            KMSToolsConnector(),
+            KMSConnector(),
             CanadianTireConnector(),
             HomeDepotConnector(),
         ]
