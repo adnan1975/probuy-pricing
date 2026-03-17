@@ -1,11 +1,3 @@
-from app.connectors.base import BaseConnector
-from app.connectors.mock_catalog import build_mock_result
-from app.models.search import SearchResult
+from app.connectors.kms_connector import KMSConnector
 
-
-class KMSToolsConnector(BaseConnector):
-    source = "kms_tools"
-    source_label = "KMS Tools"
-
-    def search(self, query: str) -> list[SearchResult]:
-        return build_mock_result(query, self.source, self.source_label)
+__all__ = ["KMSConnector"]

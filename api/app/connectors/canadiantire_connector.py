@@ -1,92 +1,54 @@
-import re
-from urllib.parse import quote_plus
+from __future__ import annotations
 
-from app.connectors.base import BaseConnector
-from app.connectors.mock_catalog import build_mock_result
-from app.models.search import NormalizedResult
-
-try:
-    from playwright.async_api import Page, async_playwright
-except ImportError:  # pragma: no cover
-    async_playwright = None
-    Page = object
+from app.connectors.playwright_connector import PlaywrightConnector
+from app.models.search import SearchResult
 
 
-class CanadianTireConnector(BaseConnector):
+class CanadianTireConnector(PlaywrightConnector):
     source = "canadian_tire"
     source_label = "Canadian Tire"
-    _base_url = "https://www.canadiantire.ca"
-    _search_url_template = "https://www.canadiantire.ca/en/search-results.html?q={query}"
-    _card_selector = '[data-testid="product-card"], article'
-    _title_selector = "h3 a, h2 a, a[data-testid='product-title'], a"
-    _price_selector = "[data-testid='price'], .price, [class*='price']"
-    _sku_selector = "[data-testid='sku'], [class*='sku']"
-    _image_selector = "img"
+    search_url_template = "https://www.canadiantire.ca/en/search-results.html?q={query}"
+    selectors = {
+        # Assumption: product cards keep this e2e id pattern.
+        "card": '[data-testid="product-card"]',
+        "title": '[data-testid="product-name"] a, a[data-testid="product-link"]',
+        "price": '[data-testid="product-price"], [data-testid="sale-price"]',
+        "sku": '[data-testid="product-part-number"]',
+        "image": 'img[data-testid="product-image"]',
+        "availability": '[data-testid="stock-status"]',
+    }
 
-    async def search(self, query: str) -> list[NormalizedResult]:
-        if not query.strip() or async_playwright is None:
-            return build_mock_result(query, self.source, self.source_label)
+    async def normalize_result(self, page, card) -> SearchResult | None:
+        title_node = card.locator(self.selectors["title"]).first
+        title = (await title_node.inner_text()).strip() if await title_node.count() else None
+        if not title:
+            return None
 
-        try:
-            async with async_playwright() as playwright:
-                browser = await playwright.chromium.launch(headless=True)
-                page = await browser.new_page()
-                await self.open_search_page(page, query)
-                results = await self.extract_result_cards(page)
-                await browser.close()
-                return results or build_mock_result(query, self.source, self.source_label)
-        except Exception:
-            return build_mock_result(query, self.source, self.source_label)
+        href = await title_node.get_attribute("href") if await title_node.count() else None
+        price_node = card.locator(self.selectors["price"]).first
+        price_text = (await price_node.inner_text()).strip() if await price_node.count() else None
+        normalized_price, price_value = self.parse_price(price_text)
+        if price_value is None:
+            return None
 
-    async def open_search_page(self, page: Page, query: str) -> None:
-        await page.goto(
-            self._search_url_template.format(query=quote_plus(query)),
-            timeout=30_000,
-            wait_until="domcontentloaded",
+        sku_node = card.locator(self.selectors["sku"]).first
+        sku_text = (await sku_node.inner_text()).strip() if await sku_node.count() else None
+        availability_node = card.locator(self.selectors["availability"]).first
+        availability = (
+            (await availability_node.inner_text()).strip() if await availability_node.count() else "Unknown"
         )
-        await page.wait_for_timeout(1_500)
+        image_node = card.locator(self.selectors["image"]).first
+        image_url = await image_node.get_attribute("src") if await image_node.count() else None
 
-    async def extract_result_cards(self, page: Page) -> list[NormalizedResult]:
-        cards = page.locator(self._card_selector)
-        count = min(await cards.count(), 6)
-        results: list[NormalizedResult] = []
-        for index in range(count):
-            card = cards.nth(index)
-            title = ((await card.locator(self._title_selector).first.inner_text()) or "").strip()
-            link = await card.locator(self._title_selector).first.get_attribute("href")
-            price_text = ((await card.locator(self._price_selector).first.inner_text()) or "").strip()
-            sku = await card.locator(self._sku_selector).first.inner_text() if await card.locator(self._sku_selector).count() else None
-            image_url = await card.locator(self._image_selector).first.get_attribute("src") if await card.locator(self._image_selector).count() else None
-            results.append(self.normalize_result(title=title, price_text=price_text, product_url=link, sku=sku, image_url=image_url))
-
-        return results
-
-    def parse_price(self, price_text: str) -> float:
-        matched = re.search(r"(\d{1,3}(?:,\d{3})*(?:\.\d{2})|\d+(?:\.\d{2})?)", price_text)
-        return float(matched.group(1).replace(",", "")) if matched else 0.0
-
-    def normalize_result(
-        self,
-        *,
-        title: str,
-        price_text: str,
-        product_url: str | None,
-        sku: str | None,
-        image_url: str | None,
-    ) -> NormalizedResult:
-        normalized_url = f"{self._base_url}{product_url}" if product_url and product_url.startswith("/") else product_url
-        return NormalizedResult(
+        return SearchResult(
             source=self.source_label,
-            source_type="retailer",
+            source_type=self.source_type,
             title=title,
-            price_text=price_text,
-            price_value=self.parse_price(price_text),
+            price_text=normalized_price,
+            price_value=price_value,
             currency="CAD",
-            sku=sku,
-            brand=title.split(" ")[0] if title else None,
-            availability="Unknown",
-            product_url=normalized_url,
+            sku=sku_text,
+            availability=availability,
+            product_url=href,
             image_url=image_url,
-            confidence="Medium",
-            score=88,
         )

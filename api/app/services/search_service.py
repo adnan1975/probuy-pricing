@@ -19,23 +19,21 @@ class SearchService:
 
     async def search(self, query: str) -> SearchResponse:
         tasks = [connector.search(query) for connector in self.connectors]
-        raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+        settled = await asyncio.gather(*tasks, return_exceptions=True)
 
         results = []
-        for connector, item in zip(self.connectors, raw_results):
+        for item in settled:
             if isinstance(item, Exception):
-                # Never fail whole search due to one connector.
                 continue
             results.extend(item)
 
-        priced = [item.price_value for item in results]
+        priced = [entry.price_value for entry in results]
         analysis = SearchAnalysis(
             lowest=min(priced) if priced else None,
             highest=max(priced) if priced else None,
             average=round(mean(priced), 2) if priced else None,
-            source_count=len({item.source for item in results}),
+            source_count=len({entry.source for entry in results}),
         )
-
         source_labels = [connector.source_label for connector in self.connectors]
 
         return SearchResponse(

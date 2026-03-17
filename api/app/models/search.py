@@ -5,7 +5,7 @@ class SearchResult(BaseModel):
     source: str
     source_type: str
     title: str
-    price_text: str
+    price_text: str | None = None
     price_value: float
     currency: str = "CAD"
     sku: str | None = None

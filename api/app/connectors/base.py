@@ -8,5 +8,5 @@ class BaseConnector(ABC):
     source_label: str
 
     @abstractmethod
-    async def search(self, query: str) -> list[NormalizedResult]:
+    async def search(self, query: str) -> list[SearchResult]:
         """Return normalized search results for the provided query."""
