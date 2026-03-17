@@ -1,3 +1,4 @@
+import asyncio
 from statistics import mean
 
 from app.connectors.canadiantire_connector import CanadianTireConnector
@@ -16,19 +17,23 @@ class SearchService:
             HomeDepotConnector(),
         ]
 
-    def search(self, query: str) -> SearchResponse:
-        results = []
-        for connector in self.connectors:
-            results.extend(connector.search(query))
+    async def search(self, query: str) -> SearchResponse:
+        tasks = [connector.search(query) for connector in self.connectors]
+        settled = await asyncio.gather(*tasks, return_exceptions=True)
 
-        priced = [item.price_value for item in results]
+        results = []
+        for item in settled:
+            if isinstance(item, Exception):
+                continue
+            results.extend(item)
+
+        priced = [entry.price_value for entry in results]
         analysis = SearchAnalysis(
             lowest=min(priced) if priced else None,
             highest=max(priced) if priced else None,
             average=round(mean(priced), 2) if priced else None,
-            source_count=len({item.source for item in results}),
+            source_count=len({entry.source for entry in results}),
         )
-
         source_labels = [connector.source_label for connector in self.connectors]
 
         return SearchResponse(

@@ -8,5 +8,5 @@ search_service = SearchService()
 
 
 @router.get("/search", response_model=SearchResponse)
-def search(product: str = Query(default="")) -> SearchResponse:
-    return search_service.search(product)
+async def search(product: str = Query(default="")) -> SearchResponse:
+    return await search_service.search(product)
