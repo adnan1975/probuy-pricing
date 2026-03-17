@@ -55,13 +55,15 @@ def build_mock_result(query: str, source: str, source_label: str) -> list[Search
     price_value = product["prices"][source]
     return [
         SearchResult(
-            source=source,
-            source_label=source_label,
+            source=source_label,
+            source_type="distributor" if source == "white_cap" else "retailer",
             title=product["title"],
-            sku=product["sku"],
-            price=f"${price_value:,.2f}",
             price_value=price_value,
-            stock="In Stock",
-            link=product["links"][source],
+            sku=product["sku"],
+            brand=product["title"].split(" ")[0],
+            availability="In Stock",
+            product_url=product["links"][source],
+            confidence="High",
+            score=98 if source == "white_cap" else 95,
         )
     ]
