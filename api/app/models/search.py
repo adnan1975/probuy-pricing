@@ -24,7 +24,7 @@ class SearchResult(BaseModel):
     @computed_field
     @property
     def price(self) -> str:
-        return f"${self.price_value:,.2f}"
+        return self.price_text or f"${self.price_value:,.2f}"
 
     @computed_field
     @property
@@ -35,6 +35,9 @@ class SearchResult(BaseModel):
     @property
     def link(self) -> str | None:
         return self.product_url
+
+
+NormalizedResult = SearchResult
 
 
 class SearchAnalysis(BaseModel):

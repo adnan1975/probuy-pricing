@@ -4,7 +4,7 @@ FastAPI backend for connector-based price discovery.
 
 ## Structure
 
-- `app/connectors/`: retailer connectors (currently mock implementations)
+- `app/connectors/`: retailer connectors (live scraping + guarded fallback)
 - `app/services/`: aggregation and analysis business logic
 - `app/models/`: normalized API response models
 - `app/routers/`: API route definitions
@@ -13,12 +13,23 @@ FastAPI backend for connector-based price discovery.
 
 Implemented direct connectors:
 
-- `app/connectors/whitecap_connector.py`
-- `app/connectors/kms_connector.py`
-- `app/connectors/canadiantire_connector.py`
-- `app/connectors/homedepot_connector.py`
+- `app/connectors/whitecap_connector.py` (guarded fallback)
+- `app/connectors/kms_connector.py` (guarded fallback)
+- `app/connectors/canadiantire_connector.py` (Playwright + fallback)
+- `app/connectors/homedepot_connector.py` (Playwright + fallback)
 
-All connectors currently return mock data from a shared catalog to keep the API stable while live scraping integrations are developed.
+All connectors return a normalized schema with:
+
+- `source`
+- `title`
+- `price_text`
+- `price_value`
+- `currency`
+- `sku`
+- `brand`
+- `availability`
+- `product_url`
+- `image_url`
 
 ## Endpoint
 

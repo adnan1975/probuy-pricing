@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from app.models.search import SearchResult
+from app.models.search import NormalizedResult
 
 
 class BaseConnector(ABC):
