@@ -5,12 +5,14 @@ class SearchResult(BaseModel):
     source: str
     source_type: str
     title: str
+    price_text: str | None = None
     price_value: float
     currency: str = "CAD"
     sku: str | None = None
     brand: str | None = None
     availability: str = "Unknown"
     product_url: str | None = None
+    image_url: str | None = None
     confidence: str = "High"
     score: int = 95
 
