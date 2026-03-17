@@ -1,71 +1,60 @@
-# Project: QuoteSense
+# QuoteSense Engineering Instructions
 
 ## Goal
-Build an AI-powered pricing comparison tool for industrial products.
-
-The system should:
-- Search products across multiple retailers
-- Compare prices
-- Identify best source for quoting
-- Provide analysis (lowest, highest, average price)
-
----
-
-## Architecture
-
-Frontend:
-- React (Vite)
-
-Backend:
-- FastAPI
-
-Deployment:
-- Render
-
----
-
-## Data Sources (IMPORTANT)
-
-We DO NOT use Google SERP.
-
-We ONLY use direct retailer connectors:
-
-- White Cap (primary distributor)
+Implement retailer connectors for:
+- White Cap
 - KMS Tools
 - Canadian Tire
 - Home Depot
 
----
+## Architecture
+- Backend: FastAPI
+- One connector per retailer in `app/connectors/`
+- Frontend must never scrape directly
+- `/search` endpoint aggregates connector results
+
+## Scraping Requirements
+- Use Playwright Python
+- Prefer Playwright `locator` APIs and user-perceived selectors
+- Avoid long brittle CSS/XPath selector chains
+- Use headless browser by default
+- Extract:
+  - source
+  - title
+  - price_text
+  - price_value
+  - currency
+  - sku if available
+  - brand if available
+  - availability if available
+  - product_url
+  - image_url if available
 
 ## Connector Design
+Create:
+- `whitecap_connector.py`
+- `kms_connector.py`
+- `canadiantire_connector.py`
+- `homedepot_connector.py`
 
-Each source must have its own connector:
+Each connector must expose:
+- `async def search(self, query: str) -> list[NormalizedResult]`
 
-app/connectors/
-- whitecap_connector.py
-- kms_connector.py
-- canadiantire_connector.py
-- homedepot_connector.py
+## Result Normalization
+All connectors must return the same normalized schema.
 
-Each connector must:
-- accept a search query
-- return normalized results
+## Implementation Strategy
+- Start with Home Depot and Canadian Tire using live Playwright scraping
+- If White Cap or KMS selectors are unstable, implement a guarded fallback with clear TODOs
+- Add timeouts, retries, and graceful error handling
+- Never crash the whole search because one connector fails
 
----
-
-## Normalized Result Format
-
-```json
-{
-  "source": "White Cap",
-  "source_type": "distributor",
-  "title": "...",
-  "price_value": 329.00,
-  "currency": "CAD",
-  "sku": "...",
-  "brand": "...",
-  "availability": "...",
-  "product_url": "...",
-  "confidence": "High",
-  "score": 98
-}
+## Quality Requirements
+- Add small helper methods for:
+  - open_search_page
+  - extract_result_cards
+  - parse_price
+  - normalize_result
+- Keep selectors centralized per connector
+- Add comments for assumptions and fragile selectors
+- Add at least one test or smoke-check per connector
