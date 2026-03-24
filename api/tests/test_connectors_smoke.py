@@ -26,6 +26,15 @@ class ConnectorSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(results[0].source, "KMS Tools")
 
 
+class HomeDepotHelperTests(unittest.TestCase):
+    def test_extract_sku_and_absolute_url(self):
+        connector = HomeDepotConnector()
+        self.assertEqual(connector._extract_sku("SKU # 1234-ABCD"), "1234-ABCD")
+        self.assertEqual(
+            connector._absolute_url("/en/home/p.sample.html"),
+            "https://www.homedepot.ca/en/home/p.sample.html",
+        )
+
 class ParsePriceTests(unittest.TestCase):
     def test_parse_price_extracts_float(self):
         text, value = HomeDepotConnector().parse_price("Now $1,234.50")
