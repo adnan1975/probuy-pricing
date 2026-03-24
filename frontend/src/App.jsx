@@ -29,6 +29,7 @@ function App() {
   const [selectedExampleId, setSelectedExampleId] = useState("grinder");
   const [results, setResults] = useState([]);
   const [analysis, setAnalysis] = useState(null);
+  const [perSourceErrors, setPerSourceErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState("");
 
@@ -53,11 +54,13 @@ function App() {
         const data = await res.json();
         setResults(Array.isArray(data.results) ? data.results : []);
         setAnalysis(data.analysis || null);
+        setPerSourceErrors(data.per_source_errors || {});
       } catch (err) {
         if (err.name !== "AbortError") {
           setApiError(err.message || "Could not load results");
           setResults([]);
           setAnalysis(null);
+          setPerSourceErrors({});
         }
       } finally {
         setLoading(false);
@@ -173,11 +176,11 @@ function App() {
             <div className="summary-card"><div className="label">Average</div><div className="value">{analysis?.average_price != null ? `$${analysis.average_price.toFixed(2)}` : "$--"}</div></div>
             <div className="summary-card"><div className="label">Priced results</div><div className="value">{analysis?.priced_results ?? 0}</div></div>
             <div className="summary-card"><div className="label">Total results</div><div className="value">{analysis?.total_results ?? results.length}</div></div>
-            <div className="summary-card"><div className="label">Source errors</div><div className="value">{Object.keys(analysis?.per_source_errors || {}).length}</div></div>
+            <div className="summary-card"><div className="label">Source errors</div><div className="value">{Object.keys(perSourceErrors).length}</div></div>
           </div>
-          {Object.keys(analysis?.per_source_errors || {}).length > 0 && (
+          {Object.keys(perSourceErrors).length > 0 && (
             <div className="info-box">
-              {Object.entries(analysis?.per_source_errors || {}).map(([source, error]) => (
+              {Object.entries(perSourceErrors).map(([source, error]) => (
                 <div key={source}><strong>{source}:</strong> {error}</div>
               ))}
             </div>
