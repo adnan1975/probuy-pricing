@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import re
+from urllib.parse import quote_plus, urljoin
+
 from app.connectors.mock_catalog import build_mock_result
 from app.connectors.playwright_connector import PlaywrightConnector
 from app.models.normalized_result import NormalizedResult
@@ -11,43 +14,149 @@ class WhiteCapConnector(PlaywrightConnector):
     source_type = "distributor"
     search_url_template = "https://www.whitecap.com/search?q={query}"
     selectors = {
-        # TODO: Re-verify against production DOM; this site often uses dynamic class names.
-        "card": "article, li[data-product-id], .product-tile",
-        "title": "a[href*='/p/'], a[data-testid='product-link']",
-        "price": "[data-testid='product-price'], .price, .sales",
-        "image": "img",
+        # Keep selectors centralized so DOM updates stay isolated to this connector.
+        # NOTE: White Cap frequently ships SPA/layout updates; fallbacks below are intentional.
+        "cards": [
+            '[data-testid="product-card"]',
+            'article[data-product-id]',
+            'li[data-product-id]',
+            'article:has(a[href*="/p/"])',
+            'li:has(a[href*="/p/"])',
+        ],
+        "title": [
+            'a[data-testid="product-link"]',
+            'a[title][href*="/p/"]',
+            'a[href*="/p/"]',
+        ],
+        "price": [
+            '[data-testid="product-price"]',
+            '[aria-label*="price" i]',
+            '.price',
+            'text=/\$\s*[0-9]/',
+        ],
+        "sku": [
+            '[data-testid*="sku"]',
+            '[aria-label*="sku" i]',
+            'text=/\bSKU\b|item\s*#/i',
+        ],
+        "availability": [
+            '[data-testid*="stock"]',
+            '[aria-label*="stock" i]',
+            'text=/in stock|out of stock|available/i',
+        ],
+        "image": [
+            'img[data-testid="product-image"]',
+            'img[alt][src]',
+        ],
     }
 
+    async def open_search_page(self, page, query: str) -> None:
+        target = self.search_url_template.format(query=quote_plus(query))
+        await page.goto(target, wait_until="domcontentloaded", timeout=self.timeout_ms)
+
+    async def extract_result_cards(self, page):
+        last_error: Exception | None = None
+        for selector in self.selectors["cards"]:
+            locator = page.locator(selector)
+            try:
+                await locator.first.wait_for(state="visible", timeout=7000)
+                count = await locator.count()
+                if count:
+                    return [locator.nth(i) for i in range(count)]
+            except Exception as exc:  # pragma: no cover - depends on live DOM
+                last_error = exc
+                continue
+
+        if last_error is not None:
+            raise last_error
+        return []
+
     async def normalize_result(self, page, card) -> NormalizedResult | None:
-        title_node = card.locator(self.selectors["title"]).first
-        title = (await title_node.inner_text()).strip() if await title_node.count() else None
-        if not title:
+        try:
+            title_node = card.locator(self._selector_union("title")).first
+            if not await title_node.count():
+                return None
+
+            title = self._clean(await title_node.inner_text())
+            if not title:
+                return None
+
+            href = await title_node.get_attribute("href")
+            product_url = self._absolute_url(href)
+
+            price_node = card.locator(self._selector_union("price")).first
+            raw_price = self._clean(await price_node.inner_text()) if await price_node.count() else None
+            price_text, price_value = self.parse_price(raw_price)
+            if price_value is None:
+                # Guardrail: keep quality high by not returning cards without a visible/parsed price.
+                return None
+
+            sku_node = card.locator(self._selector_union("sku")).first
+            raw_sku = self._clean(await sku_node.inner_text()) if await sku_node.count() else None
+            sku = self._extract_sku(raw_sku)
+
+            availability_node = card.locator(self._selector_union("availability")).first
+            availability = self._clean(await availability_node.inner_text()) if await availability_node.count() else None
+
+            image_node = card.locator(self._selector_union("image")).first
+            image_src = await image_node.get_attribute("src") if await image_node.count() else None
+            image_url = self._absolute_url(image_src)
+
+            return NormalizedResult(
+                source=self.source_label,
+                source_type=self.source_type,
+                title=title,
+                price_text=price_text,
+                price_value=price_value,
+                currency="CAD",
+                sku=sku,
+                brand=self._extract_brand(title),
+                availability=availability or "Unknown",
+                product_url=product_url,
+                image_url=image_url,
+                confidence="Medium",
+                why="Matched on White Cap search card title + visible price.",
+            )
+        except Exception:
+            # Never let a malformed White Cap card break the connector.
             return None
-
-        price_node = card.locator(self.selectors["price"]).first
-        price_text = (await price_node.inner_text()).strip() if await price_node.count() else None
-        normalized_price, price_value = self.parse_price(price_text)
-        if price_value is None:
-            return None
-
-        href = await title_node.get_attribute("href")
-        image_node = card.locator(self.selectors["image"]).first
-        image_url = await image_node.get_attribute("src") if await image_node.count() else None
-
-        return NormalizedResult(
-            source=self.source_label,
-            source_type=self.source_type,
-            title=title,
-            price_text=normalized_price,
-            price_value=price_value,
-            currency="CAD",
-            product_url=href,
-            image_url=image_url,
-            availability="Unknown",
-            confidence="Medium",
-            score=80,
-        )
 
     def fallback_results(self, query: str) -> list[NormalizedResult]:
-        # Guarded fallback while White Cap selectors are validated against live HTML.
+        # Best-effort fallback: return curated mock benchmark rows for known demo queries.
+        # TODO: Replace with production-safe fallback once White Cap anti-bot/geo behavior is profiled.
         return build_mock_result(query, self.source, self.source_label)
+
+    @staticmethod
+    def _selector_union(name: str) -> str:
+        return ", ".join(WhiteCapConnector.selectors[name])
+
+    @staticmethod
+    def _clean(value: str | None) -> str | None:
+        if value is None:
+            return None
+        compact = " ".join(value.split())
+        return compact if compact else None
+
+    @staticmethod
+    def _extract_brand(title: str) -> str | None:
+        # Fragile assumption: first token is often the brand in White Cap listing titles.
+        first = title.split(" ", 1)[0].strip("-_/ ")
+        if not first:
+            return None
+        return first.title()
+
+    @staticmethod
+    def _extract_sku(raw: str | None) -> str | None:
+        if not raw:
+            return None
+        match = re.search(r"(?:SKU|item\s*#?)\s*[:#]?\s*([A-Z0-9-]{4,})", raw, re.IGNORECASE)
+        if match:
+            return match.group(1)
+        fallback = re.search(r"\b([A-Z0-9-]{5,})\b", raw)
+        return fallback.group(1) if fallback else None
+
+    @staticmethod
+    def _absolute_url(value: str | None) -> str | None:
+        if not value:
+            return None
+        return urljoin("https://www.whitecap.com", value)
