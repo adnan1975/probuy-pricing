@@ -4,7 +4,7 @@ import "./App.css";
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 const expectedSources = ["SCN Pricing", "White Cap", "KMS Tools", "Canadian Tire", "Home Depot"];
 
-const examples = [
+const fallbackExamples = [
   {
     id: "all-scn",
     label: "All SCN catalog items",
@@ -23,6 +23,7 @@ const examples = [
 ];
 
 function App() {
+  const [catalogItems, setCatalogItems] = useState([]);
   const [selectedExampleId, setSelectedExampleId] = useState("all-scn");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
@@ -32,11 +33,70 @@ function App() {
   const [apiError, setApiError] = useState("");
 
   useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadCatalogItems() {
+      try {
+        const res = await fetch(`${API_URL}/catalog/items?limit=250`, {
+          signal: controller.signal
+        });
+        if (!res.ok) {
+          throw new Error(`Catalog request returned ${res.status}`);
+        }
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setCatalogItems(data);
+        } else {
+          setCatalogItems(fallbackExamples.map((item) => item.query).filter(Boolean));
+        }
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          setCatalogItems(fallbackExamples.map((item) => item.query).filter(Boolean));
+        }
+      }
+    }
+
+    loadCatalogItems();
+    return () => controller.abort();
+  }, []);
+
+  const examples = useMemo(() => {
+    const options = [fallbackExamples[0]];
+    const unique = new Set();
+
+    for (const item of catalogItems) {
+      const normalized = (item || "").trim();
+      if (!normalized) {
+        continue;
+      }
+      const key = normalized.toLowerCase();
+      if (unique.has(key)) {
+        continue;
+      }
+      unique.add(key);
+      options.push({
+        id: `catalog-${key}`,
+        label: normalized,
+        query: normalized
+      });
+      if (options.length >= 51) {
+        break;
+      }
+    }
+
+    if (options.length < 3) {
+      options.push(...fallbackExamples.slice(1));
+    }
+
+    return options;
+  }, [catalogItems]);
+
+  useEffect(() => {
     const selectedExample = examples.find((item) => item.id === selectedExampleId);
     if (selectedExample) {
       setQuery(selectedExample.query);
     }
-  }, [selectedExampleId]);
+  }, [selectedExampleId, examples]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -90,7 +150,7 @@ function App() {
           <div>
             <div className="tag">QuoteSense Pricing Console</div>
             <h1>Connector-based retailer + SCN price discovery</h1>
-            <p>Live retailer/distributor connectors plus SCN spreadsheet-backed pricing catalog.</p>
+            <p>Live retailer/distributor connectors plus Supabase-backed SCN pricing catalog.</p>
           </div>
 
           <div className="help-card">
@@ -107,10 +167,16 @@ function App() {
 
         <div className="search-box">
           <input
+            list="catalog-suggestions"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by model, description, brand, or part number"
           />
+          <datalist id="catalog-suggestions">
+            {catalogItems.slice(0, 100).map((item) => (
+              <option key={item} value={item} />
+            ))}
+          </datalist>
           <select value={selectedExampleId} onChange={(e) => setSelectedExampleId(e.target.value)}>
             {examples.map((example) => (
               <option key={example.id} value={example.id}>
@@ -123,7 +189,7 @@ function App() {
         <div className="summary-grid">
           <div className="summary-card"><div className="label">Search term</div><div className="value">{query || "(all items)"}</div></div>
           <div className="summary-card"><div className="label">Configured sources</div><div className="value">{expectedSources.length}</div></div>
-          <div className="summary-card"><div className="label">Results</div><div className="value">{loading ? "Loading..." : results.length}</div></div>
+          <div className="summary-card"><div className="label">Catalog suggestions</div><div className="value">{catalogItems.length}</div></div>
           <div className="summary-card"><div className="label">Priced results</div><div className="value">{analysis?.priced_results ?? 0}</div></div>
         </div>
 
