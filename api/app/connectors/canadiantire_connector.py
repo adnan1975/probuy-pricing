@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.connectors.playwright_connector import PlaywrightConnector
-from app.models.search import SearchResult
+from app.models.normalized_result import NormalizedResult
 
 
 class CanadianTireConnector(PlaywrightConnector):
@@ -18,7 +18,7 @@ class CanadianTireConnector(PlaywrightConnector):
         "availability": '[data-testid="stock-status"]',
     }
 
-    async def normalize_result(self, page, card) -> SearchResult | None:
+    async def normalize_result(self, page, card) -> NormalizedResult | None:
         title_node = card.locator(self.selectors["title"]).first
         title = (await title_node.inner_text()).strip() if await title_node.count() else None
         if not title:
@@ -40,7 +40,7 @@ class CanadianTireConnector(PlaywrightConnector):
         image_node = card.locator(self.selectors["image"]).first
         image_url = await image_node.get_attribute("src") if await image_node.count() else None
 
-        return SearchResult(
+        return NormalizedResult(
             source=self.source_label,
             source_type=self.source_type,
             title=title,

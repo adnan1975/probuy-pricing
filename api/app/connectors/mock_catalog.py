@@ -1,4 +1,4 @@
-from app.models.search import SearchResult
+from app.models.normalized_result import NormalizedResult
 
 
 MOCK_PRODUCTS = {
@@ -47,16 +47,16 @@ def resolve_product(query: str) -> dict | None:
     return None
 
 
-def build_mock_result(query: str, source: str, source_label: str) -> list[SearchResult]:
+def build_mock_result(query: str, source: str, source_label: str) -> list[NormalizedResult]:
     product = resolve_product(query)
     if product is None:
         return []
 
     price_value = product["prices"][source]
     return [
-        SearchResult(
+        NormalizedResult(
             source=source_label,
-            source_type="distributor" if source == "white_cap" else "retailer",
+            source_type="distributor" if source == "white_cap" else "retail",
             title=product["title"],
             price_text=f"${price_value:,.2f}",
             price_value=price_value,
