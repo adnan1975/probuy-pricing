@@ -32,12 +32,12 @@ class WhiteCapConnector(PlaywrightConnector):
             '[data-testid="product-price"]',
             '[aria-label*="price" i]',
             '.price',
-            'text=/\$\s*[0-9]/',
+            r'text=/\$\s*[0-9]/',
         ],
         "sku": [
             '[data-testid*="sku"]',
             '[aria-label*="sku" i]',
-            'text=/\bSKU\b|item\s*#/i',
+            r'text=/\bSKU\b|item\s*#/i',
         ],
         "availability": [
             '[data-testid*="stock"]',

@@ -31,12 +31,12 @@ class CanadianTireConnector(PlaywrightConnector):
             '[data-testid="product-price"]',
             '[data-testid="sale-price"]',
             '[aria-label*="price" i]',
-            'text=/\$\s*[0-9]/',
+            r'text=/\$\s*[0-9]/',
         ],
         "sku": [
             '[data-testid="product-part-number"]',
             '[aria-label*="part number" i]',
-            'text=/part\s*number|model\s*#/i',
+            r'text=/part\s*number|model\s*#/i',
         ],
         "image": [
             'img[data-testid="product-image"]',

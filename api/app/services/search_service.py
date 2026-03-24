@@ -37,7 +37,10 @@ class SearchService:
             all_results.extend(item)
 
         ranked_results = self.matching_service.apply(query, all_results)
-        analysis = self.analysis_service.build(ranked_results)
+        analysis = self.analysis_service.build(
+            ranked_results,
+            per_source_errors=per_source_errors,
+        )
 
         return SearchResponse(
             query=query,

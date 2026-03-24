@@ -80,6 +80,14 @@ function App() {
     return results.find((item) => typeof item.price_value === "number") || null;
   }, [results]);
 
+  const sourceErrors = useMemo(() => {
+    const fromAnalysis = analysis?.per_source_errors;
+    if (fromAnalysis && typeof fromAnalysis === "object") {
+      return fromAnalysis;
+    }
+    return {};
+  }, [analysis]);
+
   return (
     <div className="page">
       <div className="container">
@@ -173,11 +181,11 @@ function App() {
             <div className="summary-card"><div className="label">Average</div><div className="value">{analysis?.average_price != null ? `$${analysis.average_price.toFixed(2)}` : "$--"}</div></div>
             <div className="summary-card"><div className="label">Priced results</div><div className="value">{analysis?.priced_results ?? 0}</div></div>
             <div className="summary-card"><div className="label">Total results</div><div className="value">{analysis?.total_results ?? results.length}</div></div>
-            <div className="summary-card"><div className="label">Source errors</div><div className="value">{Object.keys(analysis?.per_source_errors || {}).length}</div></div>
+            <div className="summary-card"><div className="label">Source errors</div><div className="value">{Object.keys(sourceErrors).length}</div></div>
           </div>
-          {Object.keys(analysis?.per_source_errors || {}).length > 0 && (
+          {Object.keys(sourceErrors).length > 0 && (
             <div className="info-box">
-              {Object.entries(analysis?.per_source_errors || {}).map(([source, error]) => (
+              {Object.entries(sourceErrors).map(([source, error]) => (
                 <div key={source}><strong>{source}:</strong> {error}</div>
               ))}
             </div>

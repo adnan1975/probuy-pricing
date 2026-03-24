@@ -22,7 +22,7 @@ class PlaywrightConnector(BaseConnector):
     max_results: int = 8
     timeout_ms: int = 30000
     retries: int = 2
-    selectors: dict[str, str] = {}
+    selectors: dict[str, list[str] | str] = {}
 
     async def search(self, query: str) -> list[NormalizedResult]:
         if not query.strip() or async_playwright is None:
@@ -32,16 +32,18 @@ class PlaywrightConnector(BaseConnector):
             try:
                 async with async_playwright() as playwright:
                     browser = await playwright.chromium.launch(headless=True)
-                    page = await browser.new_page()
-                    await self.open_search_page(page, query)
-                    cards = await self.extract_result_cards(page)
-                    results: list[NormalizedResult] = []
-                    for card in cards[: self.max_results]:
-                        normalized = await self.normalize_result(page, card)
-                        if normalized:
-                            results.append(normalized)
-                    await browser.close()
-                    return results
+                    try:
+                        page = await browser.new_page()
+                        await self.open_search_page(page, query)
+                        cards = await self.extract_result_cards(page)
+                        results: list[NormalizedResult] = []
+                        for card in cards[: self.max_results]:
+                            normalized = await self.normalize_result(page, card)
+                            if normalized:
+                                results.append(normalized)
+                        return results
+                    finally:
+                        await browser.close()
             except (PlaywrightTimeoutError, TimeoutError, OSError):
                 await asyncio.sleep(0.4)
         return self.fallback_results(query)
@@ -52,9 +54,24 @@ class PlaywrightConnector(BaseConnector):
         await page.wait_for_timeout(1200)
 
     async def extract_result_cards(self, page):
-        primary = self.selectors["card"]
-        await page.locator(primary).first.wait_for(timeout=self.timeout_ms)
-        return await page.locator(primary).all()
+        # Support both legacy `card` and current `cards` selector naming.
+        selector_or_selectors = self.selectors.get("cards") or self.selectors["card"]
+        selectors = (
+            selector_or_selectors
+            if isinstance(selector_or_selectors, list)
+            else [selector_or_selectors]
+        )
+
+        for selector in selectors:
+            locator = page.locator(selector)
+            try:
+                await locator.first.wait_for(state="visible", timeout=self.timeout_ms)
+                count = await locator.count()
+                if count:
+                    return [locator.nth(i) for i in range(count)]
+            except Exception:
+                continue
+        return []
 
     def parse_price(self, price_text: str | None) -> tuple[str | None, float | None]:
         if not price_text:
