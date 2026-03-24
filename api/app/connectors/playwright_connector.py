@@ -6,7 +6,7 @@ from abc import abstractmethod
 from urllib.parse import quote_plus
 
 from app.connectors.base import BaseConnector
-from app.models.search import SearchResult
+from app.models.normalized_result import NormalizedResult
 
 try:
     from playwright.async_api import TimeoutError as PlaywrightTimeoutError
@@ -18,13 +18,13 @@ except Exception:  # pragma: no cover - exercised in environments without playwr
 
 class PlaywrightConnector(BaseConnector):
     search_url_template: str = ""
-    source_type: str = "retailer"
+    source_type: str = "retail"
     max_results: int = 8
     timeout_ms: int = 30000
     retries: int = 2
     selectors: dict[str, str] = {}
 
-    async def search(self, query: str) -> list[SearchResult]:
+    async def search(self, query: str) -> list[NormalizedResult]:
         if not query.strip() or async_playwright is None:
             return self.fallback_results(query)
 
@@ -35,7 +35,7 @@ class PlaywrightConnector(BaseConnector):
                     page = await browser.new_page()
                     await self.open_search_page(page, query)
                     cards = await self.extract_result_cards(page)
-                    results: list[SearchResult] = []
+                    results: list[NormalizedResult] = []
                     for card in cards[: self.max_results]:
                         normalized = await self.normalize_result(page, card)
                         if normalized:
@@ -67,8 +67,8 @@ class PlaywrightConnector(BaseConnector):
         return compact, value
 
     @abstractmethod
-    async def normalize_result(self, page, card) -> SearchResult | None:
+    async def normalize_result(self, page, card) -> NormalizedResult | None:
         raise NotImplementedError
 
-    def fallback_results(self, query: str) -> list[SearchResult]:
+    def fallback_results(self, query: str) -> list[NormalizedResult]:
         return []
