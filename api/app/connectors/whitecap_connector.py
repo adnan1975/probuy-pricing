@@ -87,9 +87,8 @@ class WhiteCapConnector(PlaywrightConnector):
             price_node = card.locator(self._selector_union("price")).first
             raw_price = self._clean(await price_node.inner_text()) if await price_node.count() else None
             price_text, price_value = self.parse_price(raw_price)
-            if price_value is None:
-                # Guardrail: keep quality high by not returning cards without a visible/parsed price.
-                return None
+            default_price_text = "Price unavailable from source listing"
+            price_text = price_text or default_price_text
 
             sku_node = card.locator(self._selector_union("sku")).first
             raw_sku = self._clean(await sku_node.inner_text()) if await sku_node.count() else None
@@ -114,8 +113,12 @@ class WhiteCapConnector(PlaywrightConnector):
                 availability=availability or "Unknown",
                 product_url=product_url,
                 image_url=image_url,
-                confidence="Medium",
-                why="Matched on White Cap search card title + visible price.",
+                confidence="Medium" if price_value is not None else "Low",
+                why=(
+                    "Matched on White Cap search card title + visible price."
+                    if price_value is not None
+                    else "Matched on White Cap search card title, but no visible price was found."
+                ),
             )
         except Exception:
             # Never let a malformed White Cap card break the connector.

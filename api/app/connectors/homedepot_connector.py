@@ -83,8 +83,8 @@ class HomeDepotConnector(PlaywrightConnector):
             price_node = card.locator(self._selector_union("price")).first
             price_text = self._clean(await price_node.inner_text()) if await price_node.count() else None
             normalized_price, price_value = self.parse_price(price_text)
-            if price_value is None:
-                return None
+            default_price_text = "Price unavailable from source listing"
+            normalized_price = normalized_price or default_price_text
 
             sku_node = card.locator(self._selector_union("sku")).first
             raw_sku = self._clean(await sku_node.inner_text()) if await sku_node.count() else None
@@ -109,8 +109,12 @@ class HomeDepotConnector(PlaywrightConnector):
                 availability=availability or "Unknown",
                 product_url=product_url,
                 image_url=image_url,
-                confidence="Medium",
-                why="Matched on Home Depot search card title + visible price.",
+                confidence="Medium" if price_value is not None else "Low",
+                why=(
+                    "Matched on Home Depot search card title + visible price."
+                    if price_value is not None
+                    else "Matched on Home Depot search card title, but no visible price was found."
+                ),
             )
         except Exception:
             # One malformed card should not fail the connector.
