@@ -31,7 +31,7 @@ class KMSConnector(PlaywrightConnector):
             "span.price",
             "[data-price-type='finalPrice'] .price",
             "[data-price-amount]",
-            "text=/\$\s*[0-9]/",
+            r"text=/\$\s*[0-9]/",
         ],
         "sku": [
             ".product-item-sku",

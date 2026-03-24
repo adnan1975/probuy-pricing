@@ -26,10 +26,12 @@ class SearchAnalysis(BaseModel):
     average_price: float | None = None
     total_results: int = 0
     priced_results: int = 0
+    per_source_errors: dict[str, str] = Field(default_factory=dict)
 
 
 class SearchResponse(BaseModel):
     query: str
     results: list[NormalizedResult] = Field(default_factory=list)
     analysis: SearchAnalysis
+    # Kept for backward compatibility while frontend consumers migrate to analysis.per_source_errors.
     per_source_errors: dict[str, str] = Field(default_factory=dict)

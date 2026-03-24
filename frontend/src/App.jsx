@@ -83,6 +83,14 @@ function App() {
     return results.find((item) => typeof item.price_value === "number") || null;
   }, [results]);
 
+  const sourceErrors = useMemo(() => {
+    const fromAnalysis = analysis?.per_source_errors;
+    if (fromAnalysis && typeof fromAnalysis === "object") {
+      return fromAnalysis;
+    }
+    return {};
+  }, [analysis]);
+
   return (
     <div className="page">
       <div className="container">
