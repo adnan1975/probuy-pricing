@@ -35,6 +35,22 @@ class HomeDepotHelperTests(unittest.TestCase):
             "https://www.homedepot.ca/en/home/p.sample.html",
         )
 
+
+
+class CanadianTireHelperTests(unittest.TestCase):
+    def test_extract_sku_and_absolute_url(self):
+        connector = CanadianTireConnector()
+        self.assertEqual(connector._extract_sku("Part Number: SF201AF"), "SF201AF")
+        self.assertEqual(
+            connector._absolute_url("/en/pdp/sample-product.html"),
+            "https://www.canadiantire.ca/en/pdp/sample-product.html",
+        )
+
+    def test_extract_brand(self):
+        connector = CanadianTireConnector()
+        self.assertEqual(connector._extract_brand("DEWALT FLEXVOLT Grinder"), "Dewalt")
+
+
 class ParsePriceTests(unittest.TestCase):
     def test_parse_price_extracts_float(self):
         text, value = HomeDepotConnector().parse_price("Now $1,234.50")
