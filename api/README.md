@@ -38,8 +38,8 @@ All connectors return a normalized schema with:
 Returns:
 
 - `results`: normalized list of source results
-- `analysis`: lowest/highest/average/source_count summary
-- `source_labels`: source names for frontend rendering
+- `analysis`: lowest/highest/average/total_results/priced_results summary
+- `per_source_errors`: connector errors keyed by source label (if any)
 
 ## Run locally
 
