@@ -2,41 +2,41 @@ import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-const expectedSources = ["White Cap", "KMS Tools", "Canadian Tire", "Home Depot"];
+const expectedSources = ["SCN Pricing", "White Cap", "KMS Tools", "Canadian Tire", "Home Depot"];
 
 const examples = [
   {
+    id: "all-scn",
+    label: "All SCN catalog items",
+    query: ""
+  },
+  {
     id: "grinder",
     label: "DEWALT FLEXVOLT grinder DCG418B",
-    customer: "West Coast Marine",
-    query: "DEWALT FLEXVOLT grinder DCG418B",
-    brand: "DEWALT",
-    partNumber: "DCG418B",
-    category: "Power Tools / Grinders"
+    query: "DEWALT FLEXVOLT grinder DCG418B"
   },
   {
     id: "glasses",
     label: "3M SecureFit SF201AF safety glasses",
-    customer: "West Coast Marine",
-    query: "3M SecureFit SF201AF safety glasses",
-    brand: "3M",
-    partNumber: "SF201AF",
-    category: "PPE / Safety Eyewear"
+    query: "3M SecureFit SF201AF safety glasses"
   }
 ];
 
 function App() {
-  const [selectedExampleId, setSelectedExampleId] = useState("grinder");
+  const [selectedExampleId, setSelectedExampleId] = useState("all-scn");
+  const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [analysis, setAnalysis] = useState(null);
   const [perSourceErrors, setPerSourceErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState("");
 
-  const selected = useMemo(
-    () => examples.find((item) => item.id === selectedExampleId) || examples[0],
-    [selectedExampleId]
-  );
+  useEffect(() => {
+    const selectedExample = examples.find((item) => item.id === selectedExampleId);
+    if (selectedExample) {
+      setQuery(selectedExample.query);
+    }
+  }, [selectedExampleId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -45,7 +45,7 @@ function App() {
       setLoading(true);
       setApiError("");
       try {
-        const res = await fetch(`${API_URL}/search?product=${encodeURIComponent(selected.query)}`, {
+        const res = await fetch(`${API_URL}/search?product=${encodeURIComponent(query)}`, {
           signal: controller.signal
         });
         if (!res.ok) {
@@ -69,7 +69,7 @@ function App() {
 
     loadResults();
     return () => controller.abort();
-  }, [selected.query]);
+  }, [query]);
 
   const sourceSummary = useMemo(() => {
     const inResults = new Set(results.map((item) => item.source).filter(Boolean));
@@ -83,22 +83,14 @@ function App() {
     return results.find((item) => typeof item.price_value === "number") || null;
   }, [results]);
 
-  const sourceErrors = useMemo(() => {
-    const fromAnalysis = analysis?.per_source_errors;
-    if (fromAnalysis && typeof fromAnalysis === "object") {
-      return fromAnalysis;
-    }
-    return {};
-  }, [analysis]);
-
   return (
     <div className="page">
       <div className="container">
         <div className="topbar">
           <div>
             <div className="tag">QuoteSense Pricing Console</div>
-            <h1>Connector-based retailer price discovery</h1>
-            <p>Search results are aggregated from direct retailer and distributor connectors.</p>
+            <h1>Connector-based retailer + SCN price discovery</h1>
+            <p>Live retailer/distributor connectors plus SCN spreadsheet-backed pricing catalog.</p>
           </div>
 
           <div className="help-card">
@@ -114,7 +106,11 @@ function App() {
         </div>
 
         <div className="search-box">
-          <input value={selected.query} readOnly />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by model, description, brand, or part number"
+          />
           <select value={selectedExampleId} onChange={(e) => setSelectedExampleId(e.target.value)}>
             {examples.map((example) => (
               <option key={example.id} value={example.id}>
@@ -125,19 +121,20 @@ function App() {
         </div>
 
         <div className="summary-grid">
-          <div className="summary-card"><div className="label">Customer</div><div className="value">{selected.customer}</div></div>
-          <div className="summary-card"><div className="label">Brand</div><div className="value">{selected.brand}</div></div>
-          <div className="summary-card"><div className="label">Part Number</div><div className="value">{selected.partNumber}</div></div>
-          <div className="summary-card"><div className="label">Category</div><div className="value">{selected.category}</div></div>
+          <div className="summary-card"><div className="label">Search term</div><div className="value">{query || "(all items)"}</div></div>
           <div className="summary-card"><div className="label">Configured sources</div><div className="value">{expectedSources.length}</div></div>
           <div className="summary-card"><div className="label">Results</div><div className="value">{loading ? "Loading..." : results.length}</div></div>
+          <div className="summary-card"><div className="label">Priced results</div><div className="value">{analysis?.priced_results ?? 0}</div></div>
         </div>
 
         <div className="panel">
           <h2>Normalized connector results</h2>
           {apiError && <div className="error-box"><strong>API error:</strong> {apiError}</div>}
           {loading && <div className="info-box">Loading connector results...</div>}
-          {!loading && !apiError && results.length === 0 && <div className="info-box">No results returned.</div>}
+          {!loading && !apiError && results.length === 0 && <div className="info-box">No matches were found for this query.</div>}
+          {!loading && !apiError && results.length > 0 && (analysis?.priced_results ?? 0) === 0 && (
+            <div className="info-box">No price could be found yet. Items are shown with defaults so you can still compare sources.</div>
+          )}
 
           <div className="retailer-table-wrap">
             <table className="retailer-table">
@@ -166,7 +163,7 @@ function App() {
                     </td>
                     <td>{item.title}</td>
                     <td>{item.sku || "N/A"}</td>
-                    <td>{item.price_text || "N/A"}</td>
+                    <td>{item.price_text || "Price unavailable"}</td>
                     <td>{item.availability || "Unknown"}</td>
                     <td>{item.why || "No explanation provided"}</td>
                   </tr>
@@ -182,8 +179,6 @@ function App() {
             <div className="summary-card"><div className="label">Lowest</div><div className="value">{analysis?.lowest_price != null ? `$${analysis.lowest_price.toFixed(2)}` : "$--"}</div></div>
             <div className="summary-card"><div className="label">Highest</div><div className="value">{analysis?.highest_price != null ? `$${analysis.highest_price.toFixed(2)}` : "$--"}</div></div>
             <div className="summary-card"><div className="label">Average</div><div className="value">{analysis?.average_price != null ? `$${analysis.average_price.toFixed(2)}` : "$--"}</div></div>
-            <div className="summary-card"><div className="label">Priced results</div><div className="value">{analysis?.priced_results ?? 0}</div></div>
-            <div className="summary-card"><div className="label">Total results</div><div className="value">{analysis?.total_results ?? results.length}</div></div>
             <div className="summary-card"><div className="label">Source errors</div><div className="value">{Object.keys(perSourceErrors).length}</div></div>
           </div>
           {Object.keys(perSourceErrors).length > 0 && (

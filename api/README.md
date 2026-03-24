@@ -47,3 +47,19 @@ Returns:
 cd api
 uvicorn main:app --reload
 ```
+
+## SCN pricing spreadsheet integration
+
+To keep repository size small, do **not** commit large Excel files.
+
+1. In Excel, save the SCN workbook as UTF-8 CSV with only required fields:
+   - `model`
+   - `description`
+   - `list_price`
+   - `distributor_cost`
+   - `unit`
+   - `manufacturer` (optional)
+2. Place the compact CSV at `api/data/scn_pricing.csv` (or set `SCN_PRICING_CSV=/absolute/path/to/file.csv`).
+3. The backend now exposes this data through the `SCN Pricing` connector and includes it in `/search` responses.
+
+The loader also accepts SCN bilingual column headers and maps them automatically when present.

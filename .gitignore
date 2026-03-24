@@ -16,3 +16,9 @@ build/
 
 # Logs
 *.log
+
+# Large spreadsheet sources
+*.xlsx
+*.xls
+*.xlsm
+api/data/raw/

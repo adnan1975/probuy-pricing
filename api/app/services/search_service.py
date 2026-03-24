@@ -6,6 +6,7 @@ from app.connectors.base import BaseConnector
 from app.connectors.canadiantire_connector import CanadianTireConnector
 from app.connectors.homedepot_connector import HomeDepotConnector
 from app.connectors.kms_connector import KMSConnector
+from app.connectors.scn_connector import SCNConnector
 from app.connectors.whitecap_connector import WhiteCapConnector
 from app.models.normalized_result import NormalizedResult, SearchResponse
 from app.services.analysis_service import AnalysisService
@@ -15,6 +16,7 @@ from app.services.matching_service import MatchingService
 class SearchService:
     def __init__(self, connectors: list[BaseConnector] | None = None) -> None:
         self.connectors = connectors or [
+            SCNConnector(),
             WhiteCapConnector(),
             KMSConnector(),
             CanadianTireConnector(),
