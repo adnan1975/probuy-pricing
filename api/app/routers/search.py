@@ -13,9 +13,13 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/search", response_model=SearchResponse)
-async def search(product: str = Query(default="")) -> SearchResponse:
-    logger.info("Received /search request", extra={"product": product})
-    return await search_service.search(product)
+async def search(
+    product: str = Query(default=""),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=25, ge=1, le=100),
+) -> SearchResponse:
+    logger.info("Received /search request", extra={"product": product, "page": page, "page_size": page_size})
+    return await search_service.search(product, page=page, page_size=page_size)
 
 
 @router.get("/catalog/items", response_model=list[str])
