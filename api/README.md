@@ -63,3 +63,56 @@ To keep repository size small, do **not** commit large Excel files.
 3. The backend now exposes this data through the `SCN Pricing` connector and includes it in `/search` responses.
 
 The loader also accepts SCN bilingual column headers and maps them automatically when present.
+
+## Render + Supabase setup (recommended)
+
+If you ingest data with a local batch job and want the hosted app on Render to read from Supabase, use this pattern:
+
+1. **Create/verify your Supabase project**
+   - In Supabase, open **Project Settings → Database**.
+   - Copy the connection details for:
+     - host
+     - database name
+     - user
+     - password
+   - Prefer the **pooler** connection string for application traffic.
+
+2. **Set environment variables in Render (API service)**
+   - In Render, open `quotesense-api` → **Environment**.
+   - Add:
+     - `SUPABASE_URL` = your project URL
+     - `SUPABASE_ANON_KEY` = anon/public key (if you need Supabase client API access)
+     - `DATABASE_URL` = PostgreSQL connection string (pooler, SSL required)
+   - Recommended `DATABASE_URL` shape:
+
+```bash
+postgresql://<USER>:<PASSWORD>@<POOLER_HOST>:6543/<DB_NAME>?sslmode=require
+```
+
+3. **Deploy API and frontend with Render Blueprint**
+   - Keep using `render.yaml` at repo root.
+   - In Render, create a Blueprint from this repo so API + frontend deploy together.
+   - Ensure frontend `VITE_API_URL` points at your deployed API service URL.
+
+4. **Keep writes local, reads in Render**
+   - Run your batch ingestor locally with a **service role key** (never expose this key to frontend).
+   - Batch job writes to Supabase tables.
+   - Render-hosted API uses read-only queries (or least-privilege DB role) against the same Supabase project.
+
+5. **Security + reliability checklist**
+   - Never commit keys in git.
+   - Restrict CORS to your Render frontend domain.
+   - Use Row Level Security policies for tables accessed via Supabase APIs.
+   - Add connection pooling (Supabase pooler) to avoid exhausting Postgres connections.
+   - Set query timeouts and fail gracefully so `/search` still returns partial results.
+
+### Quick verification commands
+
+From your local machine after deployment:
+
+```bash
+curl "https://<your-api>.onrender.com/health"
+curl "https://<your-api>.onrender.com/search?product=DEWALT%20DCG418B"
+```
+
+If `/search` returns data and analysis plus no DB auth errors in Render logs, your Render↔Supabase read path is working.
