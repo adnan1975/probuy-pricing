@@ -104,19 +104,19 @@ class SCNCatalogService:
         values: list[str] = []
 
         for item in items:
-            candidate = item.model or item.description
-            if not candidate:
-                continue
-            normalized = candidate.strip()
-            if not normalized:
-                continue
-            key = normalized.lower()
-            if key in seen:
-                continue
-            seen.add(key)
-            values.append(normalized)
-            if len(values) >= limit:
-                break
+            for candidate in (item.model, item.description):
+                if not candidate:
+                    continue
+                normalized = candidate.strip()
+                if not normalized:
+                    continue
+                key = normalized.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                values.append(normalized)
+                if len(values) >= limit:
+                    return values
 
         return values
 
@@ -127,8 +127,7 @@ class SCNCatalogService:
             return []
 
         self._supabase_attempted = True
-        table_ref = f"{settings.supabase_schema}.{settings.scn_table}"
-        endpoint = f"{settings.supabase_url}/rest/v1/{table_ref}"
+        endpoint = f"{settings.supabase_url}/rest/v1/{settings.scn_table}"
         timeout_seconds = 15
         params = {
             "select": "model,description,list_price,distributor_cost,unit,manufacturer",
@@ -138,6 +137,7 @@ class SCNCatalogService:
         headers = {
             "apikey": settings.supabase_service_role_key,
             "Authorization": f"Bearer {settings.supabase_service_role_key}",
+            "Accept-Profile": settings.supabase_schema,
         }
 
         try:
@@ -150,27 +150,22 @@ class SCNCatalogService:
 
         if not isinstance(payload, list):
             self._supabase_fallback_reason = "Supabase returned an unexpected payload."
-            return []
-        if not payload:
-            self._supabase_fallback_reason = "Supabase returned no rows."
-            parsed_host = urlparse(settings.supabase_url).netloc or "unknown-host"
-            logger.exception(
-                "Failed loading SCN catalog from Supabase (host=%s schema=%s table=%s timeout=%ss): %s",
-                parsed_host,
-                settings.supabase_schema,
-                settings.scn_table,
-                timeout_seconds,
-                str(exc),
-            )
-            return []
-
-        if not isinstance(payload, list):
             logger.warning(
                 "Unexpected SCN catalog payload type from Supabase (host=%s schema=%s table=%s payload_type=%s)",
                 urlparse(settings.supabase_url).netloc or "unknown-host",
                 settings.supabase_schema,
                 settings.scn_table,
                 type(payload).__name__,
+            )
+            return []
+        if not payload:
+            self._supabase_fallback_reason = "Supabase returned no rows."
+            logger.warning(
+                "Supabase returned no SCN rows (host=%s schema=%s table=%s timeout=%ss).",
+                urlparse(settings.supabase_url).netloc or "unknown-host",
+                settings.supabase_schema,
+                settings.scn_table,
+                timeout_seconds,
             )
             return []
 
