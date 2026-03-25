@@ -34,6 +34,10 @@ class SearchResponse(BaseModel):
     query: str
     results: list[NormalizedResult] = Field(default_factory=list)
     analysis: SearchAnalysis
+    page: int = 1
+    page_size: int = 25
+    total_pages: int = 0
+    total_results: int = 0
     # Kept for backward compatibility while frontend consumers migrate to analysis.per_source_errors.
     per_source_errors: dict[str, str] = Field(default_factory=dict)
     # Kept for backward compatibility while frontend consumers migrate to analysis.per_source_warnings.

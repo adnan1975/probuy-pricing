@@ -27,7 +27,7 @@ class SearchService:
         self.analysis_service = AnalysisService()
         self.logger = logging.getLogger(__name__)
 
-    async def search(self, query: str) -> SearchResponse:
+    async def search(self, query: str, page: int = 1, page_size: int = 25) -> SearchResponse:
         self.logger.info("Starting aggregated search", extra={"query": query})
         tasks = [connector.search(query) for connector in self.connectors]
         settled = await asyncio.gather(*tasks, return_exceptions=True)
@@ -74,10 +74,20 @@ class SearchService:
             },
         )
 
+        total_results = len(ranked_results)
+        total_pages = (total_results + page_size - 1) // page_size if total_results else 0
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        paginated_results = ranked_results[start_idx:end_idx]
+
         return SearchResponse(
             query=query,
-            results=ranked_results,
+            results=paginated_results,
             analysis=analysis,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+            total_results=total_results,
             per_source_errors=per_source_errors,
             per_source_warnings=per_source_warnings,
         )
