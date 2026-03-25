@@ -29,6 +29,7 @@ class AppSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("/", route_paths)
         self.assertIn("/search", route_paths)
         self.assertIn("/catalog/health", route_paths)
+        self.assertIn("/catalog/all-items", route_paths)
 
 
 if __name__ == "__main__":

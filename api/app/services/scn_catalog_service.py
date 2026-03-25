@@ -26,7 +26,7 @@ class SCNItem:
 
 
 class SCNCatalogService:
-    """Loads SCN pricing from Supabase (preferred) with CSV fallback for local use."""
+    """Loads SCN pricing from Supabase."""
 
     def __init__(self, csv_path: str | None = None) -> None:
         root_dir = Path(__file__).resolve().parents[2]
@@ -45,20 +45,12 @@ class SCNCatalogService:
 
         self.last_load_warning = None
         db_items = self._load_from_supabase()
-        if db_items:
-            self._items = db_items
-            self._last_load_source = "supabase"
-            return db_items
-
-        csv_items = self._load_from_csv()
-        if csv_items and self._supabase_attempted:
+        self._items = db_items
+        self._last_load_source = "supabase"
+        if not db_items:
             fallback_reason = self._supabase_fallback_reason or "Supabase returned no rows."
-            self.last_load_warning = (
-                f"Using SCN CSV fallback because Supabase data was unavailable ({fallback_reason})."
-            )
-        self._items = csv_items
-        self._last_load_source = "csv"
-        return csv_items
+            self.last_load_warning = f"SCN catalog unavailable from Supabase ({fallback_reason})."
+        return db_items
 
     @property
     def last_load_source(self) -> str:
@@ -124,6 +116,7 @@ class SCNCatalogService:
         self._supabase_attempted = False
         self._supabase_fallback_reason = None
         if not settings.supabase_url or not settings.supabase_service_role_key:
+            self._supabase_fallback_reason = "Supabase credentials are not configured."
             return []
 
         self._supabase_attempted = True

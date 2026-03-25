@@ -38,3 +38,12 @@ class SearchResponse(BaseModel):
     per_source_errors: dict[str, str] = Field(default_factory=dict)
     # Kept for backward compatibility while frontend consumers migrate to analysis.per_source_warnings.
     per_source_warnings: dict[str, str] = Field(default_factory=dict)
+
+
+class CatalogItem(BaseModel):
+    model: str
+    description: str
+    list_price: float | None = None
+    distributor_cost: float | None = None
+    unit: str | None = None
+    manufacturer: str | None = None

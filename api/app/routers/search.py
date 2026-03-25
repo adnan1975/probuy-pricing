@@ -2,7 +2,7 @@ import logging
 
 from fastapi import APIRouter, Query
 
-from app.models.normalized_result import SearchResponse
+from app.models.normalized_result import CatalogItem, SearchResponse
 from app.services.scn_catalog_service import SCNCatalogService
 from app.services.search_service import SearchService
 
@@ -22,6 +22,13 @@ async def search(product: str = Query(default="")) -> SearchResponse:
 async def catalog_items(limit: int = Query(default=100, ge=1, le=1000)) -> list[str]:
     logger.info("Received /catalog/items request", extra={"limit": limit})
     return scn_catalog_service.list_distinct_queries(limit=limit)
+
+
+@router.get("/catalog/all-items", response_model=list[CatalogItem])
+async def catalog_all_items() -> list[CatalogItem]:
+    logger.info("Received /catalog/all-items request")
+    items = scn_catalog_service.load_items()
+    return [CatalogItem(**item.__dict__) for item in items]
 
 
 @router.get("/catalog/health")

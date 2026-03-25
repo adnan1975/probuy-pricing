@@ -1,5 +1,3 @@
-from pathlib import Path
-import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
@@ -9,16 +7,35 @@ from app.services.scn_catalog_service import SCNCatalogService
 
 
 class SCNCatalogServiceTests(unittest.TestCase):
-    def test_search_matches_model_and_description(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            csv_path = Path(tmpdir) / "scn.csv"
-            csv_path.write_text(
-                "model,description,list_price,distributor_cost,unit,manufacturer\n"
-                "DCG418B,DEWALT FLEXVOLT Grinder,339,295,EA,DEWALT\n"
-                "SF201AF,3M Safety Glasses,14.25,10.75,EA,3M\n",
-                encoding="utf-8",
-            )
-            service = SCNCatalogService(csv_path=str(csv_path))
+    @patch("app.services.scn_catalog_service.requests.get")
+    def test_search_matches_model_and_description(self, mock_get: Mock):
+        mock_response = Mock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = [
+            {
+                "model": "DCG418B",
+                "description": "DEWALT FLEXVOLT Grinder",
+                "list_price": 339.0,
+                "distributor_cost": 295.0,
+                "unit": "EA",
+                "manufacturer": "DEWALT",
+            },
+            {
+                "model": "SF201AF",
+                "description": "3M Safety Glasses",
+                "list_price": 14.25,
+                "distributor_cost": 10.75,
+                "unit": "EA",
+                "manufacturer": "3M",
+            },
+        ]
+        mock_get.return_value = mock_response
+        old_url = settings.supabase_url
+        old_key = settings.supabase_service_role_key
+        try:
+            settings.supabase_url = "https://example.supabase.co"
+            settings.supabase_service_role_key = "test-key"
+            service = SCNCatalogService()
 
             model_match = service.search("DCG418B")
             desc_match = service.search("safety glasses")
@@ -27,47 +44,69 @@ class SCNCatalogServiceTests(unittest.TestCase):
             self.assertEqual(model_match[0].model, "DCG418B")
             self.assertEqual(len(desc_match), 1)
             self.assertEqual(desc_match[0].model, "SF201AF")
+        finally:
+            settings.supabase_url = old_url
+            settings.supabase_service_role_key = old_key
 
-    def test_search_with_empty_query_returns_all_rows(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            csv_path = Path(tmpdir) / "scn.csv"
-            csv_path.write_text(
-                "model,description,list_price,distributor_cost,unit\n"
-                "A1,Item A,10.00,8.00,EA\n"
-                "B1,Item B,,5.00,EA\n",
-                encoding="utf-8",
-            )
-            service = SCNCatalogService(csv_path=str(csv_path))
+    @patch("app.services.scn_catalog_service.requests.get")
+    def test_search_with_empty_query_returns_all_rows(self, mock_get: Mock):
+        mock_response = Mock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = [
+            {"model": "A1", "description": "Item A", "list_price": 10.0},
+            {"model": "B1", "description": "Item B", "list_price": None},
+        ]
+        mock_get.return_value = mock_response
+        old_url = settings.supabase_url
+        old_key = settings.supabase_service_role_key
+        try:
+            settings.supabase_url = "https://example.supabase.co"
+            settings.supabase_service_role_key = "test-key"
+            service = SCNCatalogService()
             results = service.search("")
             self.assertEqual(len(results), 2)
+        finally:
+            settings.supabase_url = old_url
+            settings.supabase_service_role_key = old_key
 
-    def test_health_reports_csv_source_metadata(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            csv_path = Path(tmpdir) / "scn.csv"
-            csv_path.write_text(
-                "model,description,list_price,distributor_cost,unit\n"
-                "A1,Item A,10.00,8.00,EA\n",
-                encoding="utf-8",
-            )
-            service = SCNCatalogService(csv_path=str(csv_path))
+    @patch("app.services.scn_catalog_service.requests.get")
+    def test_health_reports_supabase_source_metadata(self, mock_get: Mock):
+        mock_response = Mock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = [{"model": "A1", "description": "Item A", "list_price": 10.0}]
+        mock_get.return_value = mock_response
+        old_url = settings.supabase_url
+        old_key = settings.supabase_service_role_key
+        try:
+            settings.supabase_url = "https://example.supabase.co"
+            settings.supabase_service_role_key = "test-key"
+            service = SCNCatalogService()
 
             health = service.health()
 
-            self.assertEqual(health["catalog_source"], "csv")
+            self.assertEqual(health["catalog_source"], "supabase")
             self.assertEqual(health["loaded_items_count"], 1)
             self.assertIn("supabase_configured", health)
             self.assertIn("table_ref", health)
+        finally:
+            settings.supabase_url = old_url
+            settings.supabase_service_role_key = old_key
 
-    def test_list_distinct_queries_includes_model_and_description(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            csv_path = Path(tmpdir) / "scn.csv"
-            csv_path.write_text(
-                "model,description,list_price,distributor_cost,unit\n"
-                "A1,Hydraulic Pump Model A,10.00,8.00,EA\n"
-                "B1,Hydraulic Pump Model B,12.00,9.00,EA\n",
-                encoding="utf-8",
-            )
-            service = SCNCatalogService(csv_path=str(csv_path))
+    @patch("app.services.scn_catalog_service.requests.get")
+    def test_list_distinct_queries_includes_model_and_description(self, mock_get: Mock):
+        mock_response = Mock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = [
+            {"model": "A1", "description": "Hydraulic Pump Model A", "list_price": 10.0},
+            {"model": "B1", "description": "Hydraulic Pump Model B", "list_price": 12.0},
+        ]
+        mock_get.return_value = mock_response
+        old_url = settings.supabase_url
+        old_key = settings.supabase_service_role_key
+        try:
+            settings.supabase_url = "https://example.supabase.co"
+            settings.supabase_service_role_key = "test-key"
+            service = SCNCatalogService()
 
             suggestions = service.list_distinct_queries(limit=10)
 
@@ -75,6 +114,9 @@ class SCNCatalogServiceTests(unittest.TestCase):
             self.assertIn("Hydraulic Pump Model A", suggestions)
             self.assertIn("B1", suggestions)
             self.assertIn("Hydraulic Pump Model B", suggestions)
+        finally:
+            settings.supabase_url = old_url
+            settings.supabase_service_role_key = old_key
 
     @patch("app.services.scn_catalog_service.requests.get")
     def test_supabase_load_uses_schema_profile_header(self, mock_get: Mock):
@@ -113,21 +155,36 @@ class SCNCatalogServiceTests(unittest.TestCase):
 
 
 class SCNConnectorTests(unittest.IsolatedAsyncioTestCase):
-    async def test_connector_maps_scn_rows_to_normalized_results(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            csv_path = Path(tmpdir) / "scn.csv"
-            csv_path.write_text(
-                "model,description,list_price,distributor_cost,unit,manufacturer\n"
-                "B1,Item B,,5.00,EA,BrandX\n",
-                encoding="utf-8",
-            )
-            connector = SCNConnector(catalog_service=SCNCatalogService(csv_path=str(csv_path)))
+    @patch("app.services.scn_catalog_service.requests.get")
+    async def test_connector_maps_scn_rows_to_normalized_results(self, mock_get: Mock):
+        mock_response = Mock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = [
+            {
+                "model": "B1",
+                "description": "Item B",
+                "list_price": None,
+                "distributor_cost": 5.0,
+                "unit": "EA",
+                "manufacturer": "BrandX",
+            }
+        ]
+        mock_get.return_value = mock_response
+        old_url = settings.supabase_url
+        old_key = settings.supabase_service_role_key
+        try:
+            settings.supabase_url = "https://example.supabase.co"
+            settings.supabase_service_role_key = "test-key"
+            connector = SCNConnector(catalog_service=SCNCatalogService())
             rows = await connector.search("item")
 
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0].source, "SCN Pricing")
             self.assertIsNone(rows[0].price_value)
             self.assertEqual(rows[0].price_text, "Price unavailable from SCN list")
+        finally:
+            settings.supabase_url = old_url
+            settings.supabase_service_role_key = old_key
 
 
 if __name__ == "__main__":

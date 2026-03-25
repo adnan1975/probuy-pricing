@@ -82,8 +82,7 @@ body {
   margin-bottom: 16px;
 }
 
-.search-box input,
-.search-box select {
+.search-box input {
   border: 1px solid #d4d4d8;
   border-radius: 14px;
   padding: 14px 16px;
@@ -93,10 +92,6 @@ body {
 
 .search-box input {
   flex: 1;
-}
-
-.search-box select {
-  min-width: 260px;
 }
 
 .demo-note {
@@ -377,10 +372,6 @@ body {
 
   .search-box {
     flex-direction: column;
-  }
-
-  .search-box select {
-    min-width: 100%;
   }
 
   .result-row {
