@@ -17,3 +17,8 @@ async def search(product: str = Query(default="")) -> SearchResponse:
 @router.get("/catalog/items", response_model=list[str])
 async def catalog_items(limit: int = Query(default=100, ge=1, le=1000)) -> list[str]:
     return scn_catalog_service.list_distinct_queries(limit=limit)
+
+
+@router.get("/catalog/health")
+async def catalog_health() -> dict[str, str | int | bool]:
+    return scn_catalog_service.health()
