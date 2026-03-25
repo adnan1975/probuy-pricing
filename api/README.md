@@ -5,33 +5,23 @@ FastAPI backend for connector-based price discovery.
 ## Structure
 
 - `app/connectors/`: retailer connectors (live scraping + guarded fallback)
-- `app/services/`: aggregation and analysis business logic
+- `app/services/`: aggregation, analysis, and SCN catalog logic
 - `app/models/`: normalized API response models
 - `app/routers/`: API route definitions
+- `db/supabase_pricing_schema.sql`: Supabase schema + table for SCN pricing
+- `scripts/ingest_scn_to_supabase.py`: separate SCN batch ingestion job
 
 ## Connectors
 
 Implemented direct connectors:
 
+- `app/connectors/scn_connector.py` (Supabase-backed SCN catalog, CSV fallback)
 - `app/connectors/whitecap_connector.py` (guarded fallback)
 - `app/connectors/kms_connector.py` (guarded fallback)
 - `app/connectors/canadiantire_connector.py` (Playwright + fallback)
 - `app/connectors/homedepot_connector.py` (Playwright + fallback)
 
-All connectors return a normalized schema with:
-
-- `source`
-- `title`
-- `price_text`
-- `price_value`
-- `currency`
-- `sku`
-- `brand`
-- `availability`
-- `product_url`
-- `image_url`
-
-## Endpoint
+## Endpoints
 
 ### `GET /search?product=<query>`
 
@@ -41,6 +31,31 @@ Returns:
 - `analysis`: lowest/highest/average/total_results/priced_results summary
 - `per_source_errors`: connector errors keyed by source label (if any)
 
+### `GET /catalog/items?limit=250`
+
+Returns distinct SCN catalog entries (model-first) to populate frontend dropdowns/autocomplete.
+
+## Supabase setup (pricing schema)
+
+1. Open Supabase SQL editor.
+2. Run SQL from `api/db/supabase_pricing_schema.sql`.
+3. Configure backend env vars (see `api/.env.example`):
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - optional `SUPABASE_SCHEMA` (`pricing` by default)
+   - optional `SUPABASE_SCN_TABLE` (`scn_pricing` by default)
+
+## Batch ingestion job
+
+Ingest the spreadsheet extract into Supabase as a separate job:
+
+```bash
+cd api
+python scripts/ingest_scn_to_supabase.py --csv data/scn_pricing.csv
+```
+
+If `--csv` is omitted, the job uses `SCN_PRICING_CSV` env var and then falls back to `api/data/scn_pricing.csv`.
+
 ## Run locally
 
 ```bash
@@ -48,71 +63,7 @@ cd api
 uvicorn main:app --reload
 ```
 
-## SCN pricing spreadsheet integration
+## Notes
 
-To keep repository size small, do **not** commit large Excel files.
-
-1. In Excel, save the SCN workbook as UTF-8 CSV with only required fields:
-   - `model`
-   - `description`
-   - `list_price`
-   - `distributor_cost`
-   - `unit`
-   - `manufacturer` (optional)
-2. Place the compact CSV at `api/data/scn_pricing.csv` (or set `SCN_PRICING_CSV=/absolute/path/to/file.csv`).
-3. The backend now exposes this data through the `SCN Pricing` connector and includes it in `/search` responses.
-
-The loader also accepts SCN bilingual column headers and maps them automatically when present.
-
-## Render + Supabase setup (recommended)
-
-If you ingest data with a local batch job and want the hosted app on Render to read from Supabase, use this pattern:
-
-1. **Create/verify your Supabase project**
-   - In Supabase, open **Project Settings → Database**.
-   - Copy the connection details for:
-     - host
-     - database name
-     - user
-     - password
-   - Prefer the **pooler** connection string for application traffic.
-
-2. **Set environment variables in Render (API service)**
-   - In Render, open `quotesense-api` → **Environment**.
-   - Add:
-     - `SUPABASE_URL` = your project URL
-     - `SUPABASE_ANON_KEY` = anon/public key (if you need Supabase client API access)
-     - `DATABASE_URL` = PostgreSQL connection string (pooler, SSL required)
-   - Recommended `DATABASE_URL` shape:
-
-```bash
-postgresql://<USER>:<PASSWORD>@<POOLER_HOST>:6543/<DB_NAME>?sslmode=require
-```
-
-3. **Deploy API and frontend with Render Blueprint**
-   - Keep using `render.yaml` at repo root.
-   - In Render, create a Blueprint from this repo so API + frontend deploy together.
-   - Ensure frontend `VITE_API_URL` points at your deployed API service URL.
-
-4. **Keep writes local, reads in Render**
-   - Run your batch ingestor locally with a **service role key** (never expose this key to frontend).
-   - Batch job writes to Supabase tables.
-   - Render-hosted API uses read-only queries (or least-privilege DB role) against the same Supabase project.
-
-5. **Security + reliability checklist**
-   - Never commit keys in git.
-   - Restrict CORS to your Render frontend domain.
-   - Use Row Level Security policies for tables accessed via Supabase APIs.
-   - Add connection pooling (Supabase pooler) to avoid exhausting Postgres connections.
-   - Set query timeouts and fail gracefully so `/search` still returns partial results.
-
-### Quick verification commands
-
-From your local machine after deployment:
-
-```bash
-curl "https://<your-api>.onrender.com/health"
-curl "https://<your-api>.onrender.com/search?product=DEWALT%20DCG418B"
-```
-
-If `/search` returns data and analysis plus no DB auth errors in Render logs, your Render↔Supabase read path is working.
+- Supabase is preferred for SCN reads.
+- If Supabase credentials are not set or unavailable, SCN data automatically falls back to the CSV loader.
