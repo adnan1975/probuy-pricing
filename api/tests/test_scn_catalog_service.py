@@ -39,6 +39,23 @@ class SCNCatalogServiceTests(unittest.TestCase):
             results = service.search("")
             self.assertEqual(len(results), 2)
 
+    def test_health_reports_csv_source_metadata(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = Path(tmpdir) / "scn.csv"
+            csv_path.write_text(
+                "model,description,list_price,distributor_cost,unit\n"
+                "A1,Item A,10.00,8.00,EA\n",
+                encoding="utf-8",
+            )
+            service = SCNCatalogService(csv_path=str(csv_path))
+
+            health = service.health()
+
+            self.assertEqual(health["catalog_source"], "csv")
+            self.assertEqual(health["loaded_items_count"], 1)
+            self.assertIn("supabase_configured", health)
+            self.assertIn("table_ref", health)
+
 
 class SCNConnectorTests(unittest.IsolatedAsyncioTestCase):
     async def test_connector_maps_scn_rows_to_normalized_results(self):

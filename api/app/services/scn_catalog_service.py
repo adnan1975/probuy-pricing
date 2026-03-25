@@ -30,6 +30,7 @@ class SCNCatalogService:
         configured_path = csv_path or os.getenv("SCN_PRICING_CSV", str(default_path))
         self.csv_path = Path(configured_path)
         self._items: list[SCNItem] | None = None
+        self._last_load_source: str = "csv"
 
     def load_items(self, force_reload: bool = False) -> list[SCNItem]:
         if self._items is not None and not force_reload:
@@ -38,11 +39,34 @@ class SCNCatalogService:
         db_items = self._load_from_supabase()
         if db_items:
             self._items = db_items
+            self._last_load_source = "supabase"
             return db_items
 
         csv_items = self._load_from_csv()
         self._items = csv_items
+        self._last_load_source = "csv"
         return csv_items
+
+    @property
+    def last_load_source(self) -> str:
+        return self._last_load_source
+
+    @property
+    def supabase_configured(self) -> bool:
+        return bool(settings.supabase_url and settings.supabase_service_role_key)
+
+    @property
+    def table_ref(self) -> str:
+        return f"{settings.supabase_schema}.{settings.scn_table}"
+
+    def health(self) -> dict[str, str | int | bool]:
+        items = self.load_items()
+        return {
+            "catalog_source": self.last_load_source,
+            "loaded_items_count": len(items),
+            "supabase_configured": self.supabase_configured,
+            "table_ref": self.table_ref,
+        }
 
     def search(self, query: str) -> list[SCNItem]:
         items = self.load_items()
@@ -87,8 +111,7 @@ class SCNCatalogService:
         if not settings.supabase_url or not settings.supabase_service_role_key:
             return []
 
-        table_ref = f"{settings.supabase_schema}.{settings.scn_table}"
-        endpoint = f"{settings.supabase_url}/rest/v1/{table_ref}"
+        endpoint = f"{settings.supabase_url}/rest/v1/{self.table_ref}"
         params = {
             "select": "model,description,list_price,distributor_cost,unit,manufacturer",
             "order": "model.asc",
