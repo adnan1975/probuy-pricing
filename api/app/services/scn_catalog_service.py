@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import csv
+import logging
 import os
 import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -89,6 +93,7 @@ class SCNCatalogService:
 
         table_ref = f"{settings.supabase_schema}.{settings.scn_table}"
         endpoint = f"{settings.supabase_url}/rest/v1/{table_ref}"
+        timeout_seconds = 15
         params = {
             "select": "model,description,list_price,distributor_cost,unit,manufacturer",
             "order": "model.asc",
@@ -100,13 +105,29 @@ class SCNCatalogService:
         }
 
         try:
-            response = requests.get(endpoint, params=params, headers=headers, timeout=15)
+            response = requests.get(endpoint, params=params, headers=headers, timeout=timeout_seconds)
             response.raise_for_status()
             payload = response.json()
-        except requests.RequestException:
+        except requests.RequestException as exc:
+            parsed_host = urlparse(settings.supabase_url).netloc or "unknown-host"
+            logger.exception(
+                "Failed loading SCN catalog from Supabase (host=%s schema=%s table=%s timeout=%ss): %s",
+                parsed_host,
+                settings.supabase_schema,
+                settings.scn_table,
+                timeout_seconds,
+                str(exc),
+            )
             return []
 
         if not isinstance(payload, list):
+            logger.warning(
+                "Unexpected SCN catalog payload type from Supabase (host=%s schema=%s table=%s payload_type=%s)",
+                urlparse(settings.supabase_url).netloc or "unknown-host",
+                settings.supabase_schema,
+                settings.scn_table,
+                type(payload).__name__,
+            )
             return []
 
         rows: list[SCNItem] = []
