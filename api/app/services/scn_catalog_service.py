@@ -30,17 +30,26 @@ class SCNCatalogService:
         configured_path = csv_path or os.getenv("SCN_PRICING_CSV", str(default_path))
         self.csv_path = Path(configured_path)
         self._items: list[SCNItem] | None = None
+        self.last_load_warning: str | None = None
+        self._supabase_attempted = False
+        self._supabase_fallback_reason: str | None = None
 
     def load_items(self, force_reload: bool = False) -> list[SCNItem]:
         if self._items is not None and not force_reload:
             return self._items
 
+        self.last_load_warning = None
         db_items = self._load_from_supabase()
         if db_items:
             self._items = db_items
             return db_items
 
         csv_items = self._load_from_csv()
+        if csv_items and self._supabase_attempted:
+            fallback_reason = self._supabase_fallback_reason or "Supabase returned no rows."
+            self.last_load_warning = (
+                f"Using SCN CSV fallback because Supabase data was unavailable ({fallback_reason})."
+            )
         self._items = csv_items
         return csv_items
 
@@ -84,9 +93,12 @@ class SCNCatalogService:
         return values
 
     def _load_from_supabase(self) -> list[SCNItem]:
+        self._supabase_attempted = False
+        self._supabase_fallback_reason = None
         if not settings.supabase_url or not settings.supabase_service_role_key:
             return []
 
+        self._supabase_attempted = True
         table_ref = f"{settings.supabase_schema}.{settings.scn_table}"
         endpoint = f"{settings.supabase_url}/rest/v1/{table_ref}"
         params = {
@@ -103,10 +115,15 @@ class SCNCatalogService:
             response = requests.get(endpoint, params=params, headers=headers, timeout=15)
             response.raise_for_status()
             payload = response.json()
-        except requests.RequestException:
+        except requests.RequestException as exc:
+            self._supabase_fallback_reason = str(exc)
             return []
 
         if not isinstance(payload, list):
+            self._supabase_fallback_reason = "Supabase returned an unexpected payload."
+            return []
+        if not payload:
+            self._supabase_fallback_reason = "Supabase returned no rows."
             return []
 
         rows: list[SCNItem] = []

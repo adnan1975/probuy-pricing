@@ -27,6 +27,7 @@ class SearchAnalysis(BaseModel):
     total_results: int = 0
     priced_results: int = 0
     per_source_errors: dict[str, str] = Field(default_factory=dict)
+    per_source_warnings: dict[str, str] = Field(default_factory=dict)
 
 
 class SearchResponse(BaseModel):
@@ -35,3 +36,5 @@ class SearchResponse(BaseModel):
     analysis: SearchAnalysis
     # Kept for backward compatibility while frontend consumers migrate to analysis.per_source_errors.
     per_source_errors: dict[str, str] = Field(default_factory=dict)
+    # Kept for backward compatibility while frontend consumers migrate to analysis.per_source_warnings.
+    per_source_warnings: dict[str, str] = Field(default_factory=dict)

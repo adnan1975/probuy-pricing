@@ -10,6 +10,7 @@ class AnalysisService:
         self,
         results: list[NormalizedResult],
         per_source_errors: dict[str, str] | None = None,
+        per_source_warnings: dict[str, str] | None = None,
     ) -> SearchAnalysis:
         priced_values = [item.price_value for item in results if item.price_value is not None]
 
@@ -20,4 +21,5 @@ class AnalysisService:
             total_results=len(results),
             priced_results=len(priced_values),
             per_source_errors=per_source_errors or {},
+            per_source_warnings=per_source_warnings or {},
         )
