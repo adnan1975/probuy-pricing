@@ -31,17 +31,22 @@ class SearchService:
 
         all_results: list[NormalizedResult] = []
         per_source_errors: dict[str, str] = {}
+        per_source_warnings: dict[str, str] = {}
 
         for connector, item in zip(self.connectors, settled, strict=True):
             if isinstance(item, Exception):
                 per_source_errors[connector.source_label] = str(item)
                 continue
             all_results.extend(item)
+            connector_warning = getattr(connector, "last_warning", None)
+            if connector_warning:
+                per_source_warnings[connector.source_label] = connector_warning
 
         ranked_results = self.matching_service.apply(query, all_results)
         analysis = self.analysis_service.build(
             ranked_results,
             per_source_errors=per_source_errors,
+            per_source_warnings=per_source_warnings,
         )
 
         return SearchResponse(
@@ -49,4 +54,5 @@ class SearchService:
             results=ranked_results,
             analysis=analysis,
             per_source_errors=per_source_errors,
+            per_source_warnings=per_source_warnings,
         )

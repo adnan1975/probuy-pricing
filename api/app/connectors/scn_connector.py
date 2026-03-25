@@ -12,9 +12,11 @@ class SCNConnector(BaseConnector):
 
     def __init__(self, catalog_service: SCNCatalogService | None = None) -> None:
         self.catalog_service = catalog_service or SCNCatalogService()
+        self.last_warning: str | None = None
 
     async def search(self, query: str) -> list[NormalizedResult]:
         items = self.catalog_service.search(query)
+        self.last_warning = self.catalog_service.last_load_warning
         results: list[NormalizedResult] = []
 
         for item in items:
