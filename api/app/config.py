@@ -18,6 +18,7 @@ class Settings:
     supabase_schema: str = os.getenv("SUPABASE_SCHEMA", "pricing")
     scn_table: str = os.getenv("SUPABASE_SCN_TABLE", "scn_pricing")
     scn_batch_size: int = _to_int(os.getenv("SCN_BATCH_SIZE"), 500)
+    connector_prices_table: str = os.getenv("SUPABASE_CONNECTOR_PRICES_TABLE", "connector_prices")
     app_log_level: str = os.getenv("APP_LOG_LEVEL", "INFO").upper()
 
 

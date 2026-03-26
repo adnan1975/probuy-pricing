@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import csv
 import os
 from pathlib import Path
@@ -14,7 +15,12 @@ API_ROOT = Path(__file__).resolve().parents[1] / "api"
 if str(API_ROOT) not in sys.path:
     sys.path.insert(0, str(API_ROOT))
 
+from app.connectors.canadiantire_connector import CanadianTireConnector
+from app.connectors.homedepot_connector import HomeDepotConnector
+from app.connectors.kms_connector import KMSConnector
+from app.connectors.whitecap_connector import WhiteCapConnector
 from app.services.scn_catalog_service import SCNBatchIngestService
+from app.services.search_service import SearchService
 
 DEFAULT_INPUT_DIR = Path(__file__).resolve().parent / "input"
 DEFAULT_SCN_CSV = DEFAULT_INPUT_DIR / "scn_pricing.csv"
@@ -176,6 +182,43 @@ def generate_matched_scn_csv(content_csv: Path, pricing_xlsx: Path, output_csv: 
     return {"processed": total_rows, "matched": matched_rows}
 
 
+async def ingest_connector_prices(csv_path: Path) -> dict[str, int]:
+    search_service = SearchService(
+        connectors=[
+            WhiteCapConnector(),
+            KMSConnector(),
+            CanadianTireConnector(),
+            HomeDepotConnector(),
+        ]
+    )
+    rows_processed = 0
+    rows_with_results = 0
+    stored_results = 0
+
+    with csv_path.open("r", newline="", encoding="utf-8-sig") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            rows_processed += 1
+            model = (row.get("model") or "").strip()
+            description = (row.get("description") or "").strip()
+            query = model or description
+            if not query:
+                continue
+
+            results, _, _ = await search_service.collect_live_results(query)
+            if not results:
+                continue
+
+            rows_with_results += 1
+            stored_results += len(results)
+
+    return {
+        "rows_processed": rows_processed,
+        "rows_with_results": rows_with_results,
+        "stored_results": stored_results,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
@@ -226,6 +269,14 @@ def main() -> None:
     service = SCNBatchIngestService()
     result = service.ingest_csv_to_supabase(csv_path=str(selected_csv))
     print(f"Read {result['read']} rows and upserted {result['upserted']} rows into Supabase.")
+
+    connector_stats = asyncio.run(ingest_connector_prices(selected_csv))
+    print(
+        "Connector ingestion completed. "
+        f"Processed {connector_stats['rows_processed']} rows, "
+        f"stored connector prices for {connector_stats['rows_with_results']} rows, "
+        f"inserted {connector_stats['stored_results']} connector result rows."
+    )
 
 
 if __name__ == "__main__":

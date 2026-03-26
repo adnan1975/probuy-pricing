@@ -45,4 +45,5 @@ class SCNConnector(BaseConnector):
                 )
             )
 
+        self.persist_results(query, results)
         return results
