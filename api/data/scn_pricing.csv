@@ -1,3 +1,3 @@
-model,description,list_price,distributor_cost,unit,manufacturer
-DCG418B,DEWALT FLEXVOLT 60V MAX Grinder (Tool Only),339.00,295.00,EA,DEWALT
-SF201AF,3M SecureFit SF201AF Safety Glasses Clear Anti-Fog,14.25,10.75,EA,3M
+model,description,list_price,distributor_cost,unit,manufacturer,warehouse
+DCG418B,DEWALT FLEXVOLT 60V MAX Grinder (Tool Only),339.00,295.00,EA,DEWALT,MTL
+SF201AF,3M SecureFit SF201AF Safety Glasses Clear Anti-Fog,14.25,10.75,EA,3M,VAN
