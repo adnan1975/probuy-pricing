@@ -9,7 +9,7 @@ from openpyxl import load_workbook
 
 
 DEFAULT_INPUT_DIR = Path(__file__).resolve().parent / "input"
-DEFAULT_CONTENT_CSV = DEFAULT_INPUT_DIR / "contentLicensingnew.csv"
+DEFAULT_CONTENT_CSV = DEFAULT_INPUT_DIR / "contentlicensing.csv"
 DEFAULT_PRICING_XLSX = DEFAULT_INPUT_DIR / "pricing.xlsx"
 MODEL_COLUMN = "Model No./No modèle"
 CONTENT_PROD_COLUMN = "Prod"

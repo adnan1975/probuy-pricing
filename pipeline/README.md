@@ -24,7 +24,7 @@ The script imports backend ingestion services from `api/app/services`.
 
 ## Match pricing rows to content licensing
 
-Use this script to compare `pricing.xlsx` tabs against `contentLicensingnew.csv`.
+Use this script to compare `pricing.xlsx` tabs against `contentlicensing.csv`.
 Each tab is treated as a warehouse location and added as `warehouse_location` during processing.
 Rows are matched by:
 - pricing column: `Model No./No modèle`
@@ -33,7 +33,7 @@ Rows are matched by:
 Run from repository root:
 
 ```bash
-python pipeline/match_pricing_content.py   --content-csv pipeline/input/contentLicensingnew.csv   --pricing-xlsx pipeline/input/pricing.xlsx
+python pipeline/ingest_price_content_step.py   --content-csv pipeline/input/contentlicensing.csv   --pricing-xlsx pipeline/input/pricing.xlsx
 ```
 
 Output includes:

@@ -18,7 +18,7 @@ from app.services.scn_catalog_service import SCNBatchIngestService
 
 DEFAULT_INPUT_DIR = Path(__file__).resolve().parent / "input"
 DEFAULT_SCN_CSV = DEFAULT_INPUT_DIR / "scn_pricing.csv"
-DEFAULT_CONTENT_CSV = DEFAULT_INPUT_DIR / "contentLicensingnew.csv"
+DEFAULT_CONTENT_CSV = DEFAULT_INPUT_DIR / "contentlicensing.csv"
 DEFAULT_PRICING_XLSX = DEFAULT_INPUT_DIR / "pricing.xlsx"
 
 OUTPUT_COLUMNS = ["model", "description", "list_price", "distributor_cost", "unit", "manufacturer"]
@@ -55,6 +55,17 @@ def _find_column(fieldnames: list[str], aliases: tuple[str, ...], file_path: Pat
     )
 
 
+def _resolve_content_csv(content_csv: Path) -> Path:
+    if content_csv.exists():
+        return content_csv
+
+    legacy_path = content_csv.with_name("contentLicensingnew.csv")
+    if content_csv.name.lower() == "contentlicensing.csv" and legacy_path.exists():
+        return legacy_path
+
+    raise FileNotFoundError(f"Content CSV not found: {content_csv}")
+
+
 def read_content_manufacturer_map(content_csv: Path) -> dict[str, str]:
     with content_csv.open("r", encoding="utf-8-sig", newline="") as csv_file:
         reader = csv.DictReader(csv_file)
@@ -64,7 +75,16 @@ def read_content_manufacturer_map(content_csv: Path) -> dict[str, str]:
         prod_column = _find_column(reader.fieldnames, ("prod",), content_csv)
         manufacturer_column = _find_column(
             reader.fieldnames,
-            ("manufacturer", "fabricant", "mfr", "mfg", "brand", "marque"),
+            (
+                "manufacturernumber",
+                "manufacturer_number",
+                "manufacturer",
+                "fabricant",
+                "mfr",
+                "mfg",
+                "brand",
+                "marque",
+            ),
             content_csv,
         )
 
@@ -85,7 +105,8 @@ def _coerce_text(value: object) -> str:
 
 
 def generate_matched_scn_csv(content_csv: Path, pricing_xlsx: Path, output_csv: Path) -> dict[str, int]:
-    manufacturer_by_model = read_content_manufacturer_map(content_csv)
+    resolved_content_csv = _resolve_content_csv(content_csv)
+    manufacturer_by_model = read_content_manufacturer_map(resolved_content_csv)
 
     workbook = load_workbook(pricing_xlsx, data_only=True, read_only=True)
     output_csv.parent.mkdir(parents=True, exist_ok=True)
@@ -177,8 +198,7 @@ def main() -> None:
     if not args.skip_generate:
         content_csv = Path(args.content_csv)
         pricing_xlsx = Path(args.pricing_xlsx)
-        if not content_csv.exists():
-            raise FileNotFoundError(f"Content CSV not found: {content_csv}")
+        content_csv = _resolve_content_csv(content_csv)
         if not pricing_xlsx.exists():
             raise FileNotFoundError(f"Pricing workbook not found: {pricing_xlsx}")
 
