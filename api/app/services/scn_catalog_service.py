@@ -120,7 +120,7 @@ class SCNCatalogService:
             return []
 
         self._supabase_attempted = True
-        endpoint = f"{settings.supabase_url}/rest/v1/{settings.scn_table}"
+        endpoint = f"{settings.supabase_url}/rest/v1/scn_pricing/{settings.scn_table}"
         timeout_seconds = 15
         params = {
             "select": "model,description,list_price,distributor_cost,unit,manufacturer",
@@ -254,13 +254,15 @@ class SCNBatchIngestService:
         if not settings.supabase_url or not settings.supabase_service_role_key:
             raise RuntimeError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required for ingestion")
 
-        table_ref = f"{settings.supabase_schema}.{settings.scn_table}"
+        table_ref = f"{settings.scn_table}"
         endpoint = f"{settings.supabase_url}/rest/v1/{table_ref}"
         headers = {
             "apikey": settings.supabase_service_role_key,
             "Authorization": f"Bearer {settings.supabase_service_role_key}",
             "Content-Type": "application/json",
             "Prefer": "resolution=merge-duplicates,return=minimal",
+            # POST requires Content-Profile (not Accept-Profile) to target non-public schemas
+            "Content-Profile": settings.supabase_schema,
         }
 
         payload = [asdict(item) for item in items]
