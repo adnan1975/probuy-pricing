@@ -23,6 +23,7 @@ class SCNItem:
     distributor_cost: float | None
     unit: str | None
     manufacturer: str | None
+    warehouse: str | None
 
 
 class SCNCatalogService:
@@ -123,7 +124,7 @@ class SCNCatalogService:
         endpoint = f"{settings.supabase_url}/rest/v1/scn_pricing/{settings.scn_table}"
         timeout_seconds = 15
         params = {
-            "select": "model,description,list_price,distributor_cost,unit,manufacturer",
+            "select": "model,description,list_price,distributor_cost,unit,manufacturer,warehouse",
             "order": "model.asc",
             "limit": "5000",
         }
@@ -172,6 +173,7 @@ class SCNCatalogService:
                     distributor_cost=self._parse_decimal(row.get("distributor_cost")),
                     unit=str(row.get("unit")) if row.get("unit") else None,
                     manufacturer=str(row.get("manufacturer")) if row.get("manufacturer") else None,
+                    warehouse=str(row.get("warehouse")) if row.get("warehouse") else None,
                 )
             )
         return rows
@@ -198,6 +200,7 @@ class SCNCatalogService:
                         distributor_cost=self._parse_decimal(row.get("distributor_cost")),
                         unit=row.get("unit") or None,
                         manufacturer=row.get("manufacturer") or None,
+                        warehouse=row.get("warehouse") or None,
                     )
                 )
 
@@ -216,6 +219,7 @@ class SCNCatalogService:
             "unite_de_vente": "unit",
             "manufacturer": "manufacturer",
             "fabricant": "manufacturer",
+            "warehouse_location": "warehouse",
         }
         return aliases.get(compact, compact)
 
@@ -273,7 +277,7 @@ class SCNBatchIngestService:
             batch = payload[idx : idx + settings.scn_batch_size]
             response = requests.post(
                 endpoint,
-                params={"on_conflict": "model"},
+                params={"on_conflict": "model,manufacturer,warehouse"},
                 headers=headers,
                 json=batch,
                 timeout=30,

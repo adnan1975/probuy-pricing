@@ -21,7 +21,15 @@ DEFAULT_SCN_CSV = DEFAULT_INPUT_DIR / "scn_pricing.csv"
 DEFAULT_CONTENT_CSV = DEFAULT_INPUT_DIR / "contentlicensing.csv"
 DEFAULT_PRICING_XLSX = DEFAULT_INPUT_DIR / "pricing.xlsx"
 
-OUTPUT_COLUMNS = ["model", "description", "list_price", "distributor_cost", "unit", "manufacturer"]
+OUTPUT_COLUMNS = [
+    "model",
+    "description",
+    "list_price",
+    "distributor_cost",
+    "unit",
+    "manufacturer",
+    "warehouse",
+]
 
 
 def normalize_key(value: object) -> str:
@@ -113,6 +121,7 @@ def generate_matched_scn_csv(content_csv: Path, pricing_xlsx: Path, output_csv: 
 
     total_rows = 0
     matched_rows = 0
+    seen_composite_keys: set[tuple[str, str, str]] = set()
 
     with output_csv.open("w", encoding="utf-8", newline="") as out_file:
         writer = csv.DictWriter(out_file, fieldnames=OUTPUT_COLUMNS)
@@ -145,6 +154,11 @@ def generate_matched_scn_csv(content_csv: Path, pricing_xlsx: Path, output_csv: 
                     or normalized_row.get("unit")
                 )
                 manufacturer = manufacturer_by_model.get(model_key, "")
+                warehouse = _coerce_text(sheet_name).upper()
+                composite_key = (model_key, manufacturer.strip().upper(), warehouse)
+                if composite_key in seen_composite_keys:
+                    continue
+                seen_composite_keys.add(composite_key)
 
                 writer.writerow(
                     {
@@ -154,6 +168,7 @@ def generate_matched_scn_csv(content_csv: Path, pricing_xlsx: Path, output_csv: 
                         "distributor_cost": distributor_cost,
                         "unit": unit,
                         "manufacturer": manufacturer,
+                        "warehouse": warehouse,
                     }
                 )
                 matched_rows += 1
