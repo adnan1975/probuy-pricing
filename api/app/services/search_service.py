@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Iterable
 
 from app.connectors.base import BaseConnector
 from app.connectors.canadiantire_connector import CanadianTireConnector
@@ -28,6 +29,28 @@ class SearchService:
         self.analysis_service = AnalysisService()
         self.connector_price_service = ConnectorPriceService()
         self.logger = logging.getLogger(__name__)
+        self._connector_lookup = self._build_connector_lookup(self.connectors)
+
+    @staticmethod
+    def _build_connector_lookup(connectors: Iterable[BaseConnector]) -> dict[str, BaseConnector]:
+        lookup: dict[str, BaseConnector] = {}
+        for connector in connectors:
+            aliases = {
+                connector.source,
+                connector.source.replace("_", ""),
+                connector.source_label.lower(),
+                connector.source_label.lower().replace(" ", ""),
+                connector.source_label.lower().replace(" ", "_"),
+            }
+            for alias in aliases:
+                lookup[alias] = connector
+        return lookup
+
+    def resolve_connector(self, connector_name: str) -> BaseConnector | None:
+        normalized = connector_name.strip().lower()
+        if not normalized:
+            return None
+        return self._connector_lookup.get(normalized) or self._connector_lookup.get(normalized.replace("-", "_"))
 
     async def search(self, query: str, page: int = 1, page_size: int = 25) -> SearchResponse:
         self.logger.info("Loading connector results from Supabase", extra={"query": query})
