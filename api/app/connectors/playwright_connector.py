@@ -26,7 +26,9 @@ class PlaywrightConnector(BaseConnector):
 
     async def search(self, query: str) -> list[NormalizedResult]:
         if not query.strip() or async_playwright is None:
-            return self.fallback_results(query)
+            fallback = self.fallback_results(query)
+            self.persist_results(query, fallback)
+            return fallback
 
         for _ in range(self.retries):
             try:
@@ -41,12 +43,16 @@ class PlaywrightConnector(BaseConnector):
                             normalized = await self.normalize_result(page, card)
                             if normalized:
                                 results.append(normalized)
+                        self.persist_results(query, results)
                         return results
                     finally:
                         await browser.close()
             except (PlaywrightTimeoutError, TimeoutError, OSError):
                 await asyncio.sleep(0.4)
-        return self.fallback_results(query)
+
+        fallback = self.fallback_results(query)
+        self.persist_results(query, fallback)
+        return fallback
 
     async def open_search_page(self, page, query: str) -> None:
         target = self.search_url_template.format(query=quote_plus(query))

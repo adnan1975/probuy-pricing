@@ -180,7 +180,7 @@ function App() {
           <div>
             <div className="tag">QuoteSense Pricing Console</div>
             <h1>Connector-based retailer + SCN price discovery</h1>
-            <p>Live retailer/distributor connectors plus Supabase-backed SCN pricing catalog.</p>
+            <p>Supabase-backed connector price history plus SCN pricing catalog.</p>
           </div>
 
           <div className="help-card">
@@ -217,7 +217,7 @@ function App() {
         <div className="panel">
           <h2>Items found</h2>
           {apiError && <div className="error-box"><strong>API error:</strong> {apiError}</div>}
-          {loading && <div className="info-box">Loading connector results...</div>}
+          {loading && <div className="info-box">Loading connector results from Supabase...</div>}
           {!loading && !apiError && canSearch && results.length === 0 && <div className="info-box">No matches were found for this query.</div>}
           {!loading && !apiError && canSearch && results.length > 0 && (analysis?.priced_results ?? 0) === 0 && (
             <div className="info-box">No price could be found yet. Items are shown with defaults so you can still compare sources.</div>
@@ -298,7 +298,7 @@ function App() {
                             <div className="expanded-panel in-table">
                               <h3>Analysis & quote guidance (expanded item)</h3>
                               {expandedError && <div className="error-box"><strong>API error:</strong> {expandedError}</div>}
-                              {expandedLoading && <div className="info-box">Checking all connectors for pricing...</div>}
+                              {expandedLoading && <div className="info-box">Loading source pricing snapshot from Supabase...</div>}
 
                               {!expandedLoading && !expandedError && (
                                 <>
