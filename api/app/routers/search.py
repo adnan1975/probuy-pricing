@@ -1,8 +1,13 @@
 import logging
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 
-from app.models.normalized_result import CatalogItem, SearchResponse
+from app.models.normalized_result import (
+    CatalogItem,
+    ConnectorSearchRequest,
+    ConnectorSearchResponse,
+    SearchResponse,
+)
 from app.services.scn_catalog_service import SCNCatalogService
 from app.services.search_service import SearchService
 
@@ -20,6 +25,42 @@ async def search(
 ) -> SearchResponse:
     logger.info("Received /search request", extra={"product": product, "page": page, "page_size": page_size})
     return await search_service.search(product, page=page, page_size=page_size)
+
+
+@router.post("/search/{connector_name}", response_model=ConnectorSearchResponse)
+async def search_by_connector(
+    payload: ConnectorSearchRequest,
+    connector_name: str = Path(..., min_length=1),
+) -> ConnectorSearchResponse:
+    query = payload.query.strip()
+    logger.info("Received /search/{connector_name} request", extra={"connector_name": connector_name, "query": query})
+
+    connector = search_service.resolve_connector(connector_name)
+    if connector is None:
+        raise HTTPException(status_code=404, detail=f"Unknown connector: {connector_name}")
+
+    try:
+        results = await connector.search(query)
+    except Exception as exc:
+        logger.error(
+            "Connector search failed",
+            extra={"connector": connector.source_label, "query": query},
+            exc_info=(type(exc), exc, exc.__traceback__),
+        )
+        return ConnectorSearchResponse(
+            connector=connector.source,
+            query=query,
+            results=[],
+            error=str(exc),
+            warning=getattr(connector, "last_warning", None),
+        )
+
+    return ConnectorSearchResponse(
+        connector=connector.source,
+        query=query,
+        results=results,
+        warning=getattr(connector, "last_warning", None),
+    )
 
 
 @router.get("/catalog/items", response_model=list[str])

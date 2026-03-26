@@ -44,6 +44,18 @@ class SearchResponse(BaseModel):
     per_source_warnings: dict[str, str] = Field(default_factory=dict)
 
 
+class ConnectorSearchRequest(BaseModel):
+    query: str = ""
+
+
+class ConnectorSearchResponse(BaseModel):
+    connector: str
+    query: str
+    results: list[NormalizedResult] = Field(default_factory=list)
+    error: str | None = None
+    warning: str | None = None
+
+
 class CatalogItem(BaseModel):
     model: str
     description: str
