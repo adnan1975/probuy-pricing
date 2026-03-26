@@ -11,6 +11,7 @@ from app.connectors.scn_connector import SCNConnector
 from app.connectors.whitecap_connector import WhiteCapConnector
 from app.models.normalized_result import NormalizedResult, SearchResponse
 from app.services.analysis_service import AnalysisService
+from app.services.connector_price_service import ConnectorPriceService
 from app.services.matching_service import MatchingService
 
 
@@ -25,18 +26,70 @@ class SearchService:
         ]
         self.matching_service = MatchingService()
         self.analysis_service = AnalysisService()
+        self.connector_price_service = ConnectorPriceService()
         self.logger = logging.getLogger(__name__)
 
     async def search(self, query: str, page: int = 1, page_size: int = 25) -> SearchResponse:
-        self.logger.info("Starting aggregated search", extra={"query": query})
-        tasks = [connector.search(query) for connector in self.connectors]
+        self.logger.info("Loading connector results from Supabase", extra={"query": query})
+
+        per_source_errors: dict[str, str] = {}
+        per_source_warnings: dict[str, str] = {}
+
+        stored_results: list[NormalizedResult] = []
+        total_results = 0
+        try:
+            stored_results, total_results = self.connector_price_service.search(query, page=page, page_size=page_size)
+        except Exception as exc:
+            per_source_errors["Supabase connector_prices"] = str(exc)
+            self.logger.error("Failed to load connector prices from Supabase", exc_info=True)
+
+        if not stored_results:
+            self.logger.info("No stored connector results found, running live connectors", extra={"query": query})
+            settled_results, live_errors, live_warnings = await self.collect_live_results(query)
+            per_source_errors.update(live_errors)
+            per_source_warnings.update(live_warnings)
+
+            if settled_results:
+                stored_results = settled_results
+                total_results = len(stored_results)
+
+        ranked_results = self.matching_service.apply(query, stored_results)
+        analysis = self.analysis_service.build(
+            ranked_results,
+            per_source_errors=per_source_errors,
+            per_source_warnings=per_source_warnings,
+        )
+
+        if total_results == 0:
+            total_results = len(ranked_results)
+        total_pages = (total_results + page_size - 1) // page_size if total_results else 0
+
+        return SearchResponse(
+            query=query,
+            results=ranked_results,
+            analysis=analysis,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+            total_results=total_results,
+            per_source_errors=per_source_errors,
+            per_source_warnings=per_source_warnings,
+        )
+
+    async def collect_live_results(
+        self,
+        query: str,
+        connectors: list[BaseConnector] | None = None,
+    ) -> tuple[list[NormalizedResult], dict[str, str], dict[str, str]]:
+        connector_list = connectors or self.connectors
+        tasks = [connector.search(query) for connector in connector_list]
         settled = await asyncio.gather(*tasks, return_exceptions=True)
 
         all_results: list[NormalizedResult] = []
         per_source_errors: dict[str, str] = {}
         per_source_warnings: dict[str, str] = {}
 
-        for connector, item in zip(self.connectors, settled, strict=True):
+        for connector, item in zip(connector_list, settled, strict=True):
             if isinstance(item, Exception):
                 per_source_errors[connector.source_label] = str(item)
                 self.logger.error(
@@ -46,48 +99,8 @@ class SearchService:
                 )
                 continue
             all_results.extend(item)
-            self.logger.info(
-                "Connector returned results",
-                extra={"source": connector.source_label, "count": len(item)},
-            )
             connector_warning = getattr(connector, "last_warning", None)
             if connector_warning:
                 per_source_warnings[connector.source_label] = connector_warning
-                self.logger.warning(
-                    "Connector warning",
-                    extra={"source": connector.source_label, "warning": connector_warning},
-                )
 
-        ranked_results = self.matching_service.apply(query, all_results)
-        analysis = self.analysis_service.build(
-            ranked_results,
-            per_source_errors=per_source_errors,
-            per_source_warnings=per_source_warnings,
-        )
-        self.logger.info(
-            "Aggregated search completed",
-            extra={
-                "query": query,
-                "total_results": len(ranked_results),
-                "error_sources": len(per_source_errors),
-                "warning_sources": len(per_source_warnings),
-            },
-        )
-
-        total_results = len(ranked_results)
-        total_pages = (total_results + page_size - 1) // page_size if total_results else 0
-        start_idx = (page - 1) * page_size
-        end_idx = start_idx + page_size
-        paginated_results = ranked_results[start_idx:end_idx]
-
-        return SearchResponse(
-            query=query,
-            results=paginated_results,
-            analysis=analysis,
-            page=page,
-            page_size=page_size,
-            total_pages=total_pages,
-            total_results=total_results,
-            per_source_errors=per_source_errors,
-            per_source_warnings=per_source_warnings,
-        )
+        return all_results, per_source_errors, per_source_warnings
