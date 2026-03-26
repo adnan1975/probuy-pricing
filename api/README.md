@@ -9,7 +9,7 @@ FastAPI backend for connector-based price discovery.
 - `app/models/`: normalized API response models
 - `app/routers/`: API route definitions
 - `db/supabase_pricing_schema.sql`: Supabase schema + table for SCN pricing
-- `scripts/ingest_scn_to_supabase.py`: separate SCN batch ingestion job
+- `../pipeline/ingest_scn_to_supabase.py`: separate SCN batch ingestion job
 
 ## Connectors
 
@@ -50,11 +50,10 @@ Returns distinct SCN catalog entries (model-first) to populate frontend dropdown
 Ingest the spreadsheet extract into Supabase as a separate job:
 
 ```bash
-cd api
-python scripts/ingest_scn_to_supabase.py --csv data/scn_pricing.csv
+python pipeline/ingest_scn_to_supabase.py --csv pipeline/input/scn_pricing.csv
 ```
 
-If `--csv` is omitted, the job uses `SCN_PRICING_CSV` env var and then falls back to `api/data/scn_pricing.csv`.
+If `--csv` is omitted, the job uses `SCN_PRICING_CSV` env var and then falls back to `pipeline/input/scn_pricing.csv`.
 
 ## Run locally
 
