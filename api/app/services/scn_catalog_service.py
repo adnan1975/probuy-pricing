@@ -128,7 +128,7 @@ class SCNCatalogService:
             return []
 
         self._supabase_attempted = True
-        endpoint = f"{settings.supabase_url}/rest/v1/scn_pricing/{settings.scn_table}"
+        endpoint = f"{settings.supabase_url}/rest/v1/{settings.scn_table}"
         timeout_seconds = 15
         params = {
             "select": "model,description,list_price,distributor_cost,unit,manufacturer,warehouse",
