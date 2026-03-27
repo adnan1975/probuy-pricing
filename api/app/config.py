@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
 
 # Load environment variables from .env file
-env_path = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(dotenv_path=env_path, override=False)
+#env_path = Path(__file__).resolve().parent.parent / ".env"
+#load_dotenv(dotenv_path=env_path, override=False)
 
 
 def _to_int(value: str | None, default: int) -> int:
