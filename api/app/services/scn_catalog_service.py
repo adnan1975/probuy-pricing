@@ -33,12 +33,14 @@ class SCNCatalogService:
         root_dir = Path(__file__).resolve().parents[2]
         default_path = root_dir / "data" / "scn_pricing.csv"
         configured_path = csv_path or os.getenv("SCN_PRICING_CSV", str(default_path))
+        # CSV path is kept only for the batch ingest utility below. Search paths
+        # in this service always read from Supabase.
         self.csv_path = Path(configured_path)
         self._items: list[SCNItem] | None = None
         self.last_load_warning: str | None = None
         self._supabase_attempted = False
         self._supabase_fallback_reason: str | None = None
-        self._last_load_source: str = "csv"
+        self._last_load_source: str = "supabase"
 
     def load_items(self, force_reload: bool = False) -> list[SCNItem]:
         if self._items is not None and not force_reload:
@@ -75,21 +77,26 @@ class SCNCatalogService:
         }
 
     def search(self, query: str) -> list[SCNItem]:
-        items = self.load_items()
-        normalized = query.strip().lower()
-        if not normalized:
-            return items
-
-        query_tokens = self._tokenize(normalized)
-        if not query_tokens:
-            return items
-
-        matches: list[SCNItem] = []
-        for item in items:
-            haystack = f"{item.model} {item.description} {item.manufacturer or ''}".lower()
-            if all(token in haystack for token in query_tokens):
-                matches.append(item)
-        return matches
+        normalized_query = query.strip().lower()
+        self.last_load_warning = None
+        items = self._load_from_supabase(query=query)
+        if normalized_query:
+            query_tokens = self._tokenize(normalized_query)
+            if query_tokens:
+                items = [
+                    item
+                    for item in items
+                    if all(
+                        token in f"{item.model} {item.description} {item.manufacturer or ''}".lower()
+                        for token in query_tokens
+                    )
+                ]
+        self._items = items
+        self._last_load_source = "supabase"
+        if not items:
+            fallback_reason = self._supabase_fallback_reason or "Supabase returned no rows."
+            self.last_load_warning = f"SCN catalog unavailable from Supabase ({fallback_reason})."
+        return items
 
     def list_distinct_queries(self, limit: int = 100) -> list[str]:
         items = self.load_items()
@@ -113,7 +120,7 @@ class SCNCatalogService:
 
         return values
 
-    def _load_from_supabase(self) -> list[SCNItem]:
+    def _load_from_supabase(self, query: str | None = None) -> list[SCNItem]:
         self._supabase_attempted = False
         self._supabase_fallback_reason = None
         if not settings.supabase_url or not settings.supabase_service_role_key:
@@ -128,6 +135,12 @@ class SCNCatalogService:
             "order": "model.asc",
             "limit": "5000",
         }
+        normalized_query = (query or "").strip()
+        if normalized_query:
+            escaped = normalized_query.replace("*", "").replace(",", " ")
+            params["or"] = (
+                f"(model.ilike.*{escaped}*,description.ilike.*{escaped}*,manufacturer.ilike.*{escaped}*)"
+            )
         headers = {
             "apikey": settings.supabase_service_role_key,
             "Authorization": f"Bearer {settings.supabase_service_role_key}",
