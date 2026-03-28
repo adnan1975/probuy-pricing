@@ -131,7 +131,9 @@ class SCNCatalogService:
         endpoint = f"{settings.supabase_url}/rest/v1/{settings.scn_table}"
         timeout_seconds = 15
         params = {
-            "select": "model,description,list_price,distributor_cost,unit,manufacturer,warehouse",
+            # Some SCN datasets use a misspelled `warhouse` column. We request both
+            # fields and normalize to `warehouse` below so location is still populated.
+            "select": "model,description,list_price,distributor_cost,unit,manufacturer,warehouse,warhouse",
             "order": "model.asc",
             "limit": "5000",
         }
@@ -186,7 +188,11 @@ class SCNCatalogService:
                     distributor_cost=self._parse_decimal(row.get("distributor_cost")),
                     unit=str(row.get("unit")) if row.get("unit") else None,
                     manufacturer=str(row.get("manufacturer")) if row.get("manufacturer") else None,
-                    warehouse=str(row.get("warehouse")) if row.get("warehouse") else None,
+                    warehouse=(
+                        str(row.get("warehouse") or row.get("warhouse"))
+                        if (row.get("warehouse") or row.get("warhouse"))
+                        else None
+                    ),
                 )
             )
         return rows
@@ -233,6 +239,8 @@ class SCNCatalogService:
             "manufacturer": "manufacturer",
             "fabricant": "manufacturer",
             "warehouse_location": "warehouse",
+            "warhouse_location": "warehouse",
+            "warhouse": "warehouse",
         }
         return aliases.get(compact, compact)
 
