@@ -215,7 +215,7 @@ function App() {
                       </td>
                       <td>{item.title}</td>
                       <td>{item.sku || "N/A"}</td>
-                      <td>{item.warehouse_location || item.warehouse || "N/A"}</td>
+                      <td>{item.location || item.warehouse_location || item.warehouse || "N/A"}</td>
                       <td>{item.price_text || "Price unavailable"}</td>
                       <td>{item.availability || "Unknown"}</td>
                       <td className="suggested-price">{formatSuggestedPrice(item)}</td>
