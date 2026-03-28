@@ -106,6 +106,7 @@ class SearchServiceTests(unittest.IsolatedAsyncioTestCase):
             "sku",
             "brand",
             "availability",
+            "location",
             "product_url",
             "image_url",
             "confidence",
@@ -115,4 +116,3 @@ class SearchServiceTests(unittest.IsolatedAsyncioTestCase):
 
         for result in response.results:
             self.assertEqual(set(result.model_dump().keys()), expected_fields)
-

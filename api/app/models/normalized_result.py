@@ -13,6 +13,7 @@ class NormalizedResult(BaseModel):
     sku: str | None = None
     brand: str | None = None
     availability: str = "Unknown"
+    location: str | None = None
     product_url: str | None = None
     image_url: str | None = None
     confidence: str = "Medium"

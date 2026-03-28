@@ -53,6 +53,7 @@ create table if not exists pricing.connector_prices (
   price numeric(12,2),
   price_text text,
   available text,
+  location text,
   currency text not null default 'CAD',
   product_url text,
   image_url text,
@@ -61,8 +62,12 @@ create table if not exists pricing.connector_prices (
   date_created timestamptz not null default now()
 );
 
+alter table pricing.connector_prices
+  add column if not exists location text;
+
 create index if not exists idx_connector_prices_query on pricing.connector_prices (search_query);
 create index if not exists idx_connector_prices_source on pricing.connector_prices (source);
 create index if not exists idx_connector_prices_sku on pricing.connector_prices (sku);
+create index if not exists idx_connector_prices_location on pricing.connector_prices (location);
 create index if not exists idx_connector_prices_date_created on pricing.connector_prices (date_created desc);
 create index if not exists idx_connector_prices_title_fts on pricing.connector_prices using gin (to_tsvector('simple', title));
