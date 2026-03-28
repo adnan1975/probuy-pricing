@@ -186,7 +186,11 @@ class SCNCatalogService:
                     distributor_cost=self._parse_decimal(row.get("distributor_cost")),
                     unit=str(row.get("unit")) if row.get("unit") else None,
                     manufacturer=str(row.get("manufacturer")) if row.get("manufacturer") else None,
-                    warehouse=str(row.get("warehouse")) if row.get("warehouse") else None,
+                    warehouse=(
+                        str(row.get("warehouse") or row.get("warhouse"))
+                        if (row.get("warehouse") or row.get("warhouse"))
+                        else None
+                    ),
                 )
             )
         return rows
@@ -233,6 +237,8 @@ class SCNCatalogService:
             "manufacturer": "manufacturer",
             "fabricant": "manufacturer",
             "warehouse_location": "warehouse",
+            "warhouse_location": "warehouse",
+            "warhouse": "warehouse",
         }
         return aliases.get(compact, compact)
 
