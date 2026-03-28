@@ -37,6 +37,7 @@ class SCNConnector(BaseConnector):
                     sku=item.model or None,
                     brand=item.manufacturer,
                     availability="Catalog Item",
+                    location=item.warehouse,
                     product_url=None,
                     image_url=None,
                     confidence="High",

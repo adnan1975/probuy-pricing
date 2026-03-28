@@ -167,6 +167,7 @@ class SCNConnectorTests(unittest.IsolatedAsyncioTestCase):
                 "distributor_cost": 5.0,
                 "unit": "EA",
                 "manufacturer": "BrandX",
+                "warehouse": "Warehouse 7",
             }
         ]
         mock_get.return_value = mock_response
@@ -182,6 +183,7 @@ class SCNConnectorTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(rows[0].source, "SCN Pricing")
             self.assertIsNone(rows[0].price_value)
             self.assertEqual(rows[0].price_text, "Price unavailable from SCN list")
+            self.assertEqual(rows[0].location, "Warehouse 7")
         finally:
             settings.supabase_url = old_url
             settings.supabase_service_role_key = old_key

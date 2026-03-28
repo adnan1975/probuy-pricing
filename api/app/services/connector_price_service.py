@@ -41,6 +41,7 @@ class ConnectorPriceService:
                     "title": item.title,
                     "price": item.price_value,
                     "available": item.availability,
+                    "location": item.location,
                     "source_type": item.source_type,
                     "price_text": item.price_text,
                     "currency": item.currency,
@@ -77,7 +78,7 @@ class ConnectorPriceService:
         }
 
         params = {
-            "select": "source,source_type,title,price_text,price,sku,available,currency,product_url,image_url,confidence,why,date_created",
+            "select": "source,source_type,title,price_text,price,sku,available,location,currency,product_url,image_url,confidence,why,date_created",
             "order": "date_created.desc",
             "limit": str(page_size),
             "offset": str((page - 1) * page_size),
@@ -103,6 +104,7 @@ class ConnectorPriceService:
                     currency=str(row.get("currency") or "CAD"),
                     sku=row.get("sku"),
                     availability=str(row.get("available") or "Unknown"),
+                    location=row.get("location"),
                     product_url=row.get("product_url"),
                     image_url=row.get("image_url"),
                     confidence=str(row.get("confidence") or "Medium"),
