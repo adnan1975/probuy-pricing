@@ -292,7 +292,7 @@ class SCNBatchIngestService:
             "Content-Profile": settings.supabase_schema,
         }
 
-        payload = [asdict(item) for item in items]
+        payload = self._normalize_ingest_payload(items)
         if not payload:
             return {"read": 0, "upserted": 0}
 
@@ -325,12 +325,20 @@ class SCNBatchIngestService:
         if response is None:
             logger.exception("SCN ingest batch failed without response metadata.")
             return
+        error_details = self._extract_supabase_error_details(response)
 
         logger.error(
-            "SCN ingest batch failed with HTTP %s (batch_start_index=%s, batch_size=%s, response=%s)",
+            (
+                "SCN ingest batch failed with HTTP %s (batch_start_index=%s, batch_size=%s, "
+                "error_code=%s, error_message=%s, error_hint=%s, error_details=%s, response=%s)"
+            ),
             response.status_code,
             batch_start_index,
             len(batch),
+            error_details["code"],
+            error_details["message"],
+            error_details["hint"],
+            error_details["details"],
             response.text[:1000],
         )
 
@@ -352,3 +360,45 @@ class SCNBatchIngestService:
                 warehouse,
                 row,
             )
+
+    def _normalize_ingest_payload(self, items: list[SCNItem]) -> list[dict[str, object]]:
+        payload: list[dict[str, object]] = []
+        skipped_missing_model = 0
+
+        for item in items:
+            row = asdict(item)
+            model = str(row.get("model") or "").strip()
+            if not model:
+                skipped_missing_model += 1
+                continue
+
+            row["model"] = model
+            row["manufacturer"] = str(row.get("manufacturer") or "").strip()
+            row["warehouse"] = str(row.get("warehouse") or "").strip()
+            row["manufacturer_model"] = str(row.get("manufacturer_model") or "").strip()
+            payload.append(row)
+
+        if skipped_missing_model:
+            logger.warning(
+                "Skipped %s SCN rows during ingest because `model` was empty.",
+                skipped_missing_model,
+            )
+
+        return payload
+
+    @staticmethod
+    def _extract_supabase_error_details(response: requests.Response) -> dict[str, str]:
+        try:
+            payload = response.json()
+        except ValueError:
+            return {"code": "", "message": "", "hint": "", "details": ""}
+
+        if not isinstance(payload, dict):
+            return {"code": "", "message": "", "hint": "", "details": ""}
+
+        return {
+            "code": str(payload.get("code") or ""),
+            "message": str(payload.get("message") or ""),
+            "hint": str(payload.get("hint") or ""),
+            "details": str(payload.get("details") or ""),
+        }

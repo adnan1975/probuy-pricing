@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 from app.connectors.scn_connector import SCNConnector
 from app.config import settings
-from app.services.scn_catalog_service import SCNCatalogService
+from app.services.scn_catalog_service import SCNBatchIngestService, SCNCatalogService, SCNItem
 
 
 class SCNCatalogServiceTests(unittest.TestCase):
@@ -187,6 +187,50 @@ class SCNConnectorTests(unittest.IsolatedAsyncioTestCase):
         finally:
             settings.supabase_url = old_url
             settings.supabase_service_role_key = old_key
+
+
+class SCNBatchIngestServiceTests(unittest.TestCase):
+    def test_normalize_ingest_payload_fills_nullable_pk_components(self):
+        service = SCNBatchIngestService()
+        rows = [
+            SCNItem(
+                model=" DCG418B ",
+                manufacturer_model=None,
+                description="DEWALT grinder",
+                list_price=339.0,
+                distributor_cost=299.0,
+                unit="EA",
+                manufacturer=None,
+                warehouse=None,
+            ),
+        ]
+
+        payload = service._normalize_ingest_payload(rows)
+
+        self.assertEqual(len(payload), 1)
+        self.assertEqual(payload[0]["model"], "DCG418B")
+        self.assertEqual(payload[0]["manufacturer"], "")
+        self.assertEqual(payload[0]["warehouse"], "")
+        self.assertEqual(payload[0]["manufacturer_model"], "")
+
+    def test_normalize_ingest_payload_skips_rows_without_model(self):
+        service = SCNBatchIngestService()
+        rows = [
+            SCNItem(
+                model="",
+                manufacturer_model=None,
+                description="Description only row",
+                list_price=None,
+                distributor_cost=None,
+                unit=None,
+                manufacturer="Acme",
+                warehouse="Main",
+            ),
+        ]
+
+        payload = service._normalize_ingest_payload(rows)
+
+        self.assertEqual(payload, [])
 
 
 if __name__ == "__main__":
