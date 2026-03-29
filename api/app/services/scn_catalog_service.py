@@ -298,14 +298,57 @@ class SCNBatchIngestService:
 
         for idx in range(0, len(payload), settings.scn_batch_size):
             batch = payload[idx : idx + settings.scn_batch_size]
-            response = requests.post(
-                endpoint,
-                params={"on_conflict": "model,manufacturer,warehouse"},
-                headers=headers,
-                json=batch,
-                timeout=30,
-            )
-            response.raise_for_status()
+            try:
+                response = requests.post(
+                    endpoint,
+                    params={"on_conflict": "model,manufacturer,warehouse"},
+                    headers=headers,
+                    json=batch,
+                    timeout=30,
+                )
+                response.raise_for_status()
+            except requests.HTTPError as exc:
+                self._log_batch_http_error(exc=exc, batch=batch, batch_start_index=idx)
+                raise
 
         self.catalog_service.load_items(force_reload=True)
         return {"read": len(payload), "upserted": len(payload)}
+
+    def _log_batch_http_error(
+        self,
+        *,
+        exc: requests.HTTPError,
+        batch: list[dict[str, object]],
+        batch_start_index: int,
+    ) -> None:
+        response = exc.response
+        if response is None:
+            logger.exception("SCN ingest batch failed without response metadata.")
+            return
+
+        logger.error(
+            "SCN ingest batch failed with HTTP %s (batch_start_index=%s, batch_size=%s, response=%s)",
+            response.status_code,
+            batch_start_index,
+            len(batch),
+            response.text[:1000],
+        )
+
+        # 400 usually indicates row-level shape/constraint issues. Probe each row to
+        # identify the exact offending model and CSV payload for faster remediation.
+        if response.status_code != 400:
+            return
+
+        for offset, row in enumerate(batch):
+            absolute_row = batch_start_index + offset + 2  # +2 accounts for 0-index + header row
+            model = row.get("model")
+            manufacturer = row.get("manufacturer")
+            warehouse = row.get("warehouse")
+            logger.error(
+                "Potentially invalid SCN row at CSV line %s (model=%s, manufacturer=%s, warehouse=%s, row=%s)",
+                absolute_row,
+                model,
+                manufacturer,
+                warehouse,
+                row,
+            )
