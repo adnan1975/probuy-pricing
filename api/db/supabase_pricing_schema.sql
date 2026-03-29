@@ -2,6 +2,7 @@ create schema if not exists pricing;
 
 create table if not exists pricing.scn_pricing (
   model text not null,
+  manufacturer_model text not null default '',
   description text not null,
   list_price numeric(12,2),
   distributor_cost numeric(12,2),
@@ -12,15 +13,19 @@ create table if not exists pricing.scn_pricing (
 );
 
 alter table pricing.scn_pricing
-  add column if not exists warehouse text;
+  add column if not exists warehouse text,
+  add column if not exists manufacturer_model text;
 
 update pricing.scn_pricing
 set manufacturer = coalesce(manufacturer, ''),
+    manufacturer_model = coalesce(manufacturer_model, ''),
     warehouse = coalesce(warehouse, '');
 
 alter table pricing.scn_pricing
   alter column manufacturer set default '',
   alter column manufacturer set not null,
+  alter column manufacturer_model set default '',
+  alter column manufacturer_model set not null,
   alter column warehouse set default '',
   alter column warehouse set not null;
 

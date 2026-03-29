@@ -30,6 +30,7 @@ DEFAULT_PRICING_XLSX = DEFAULT_INPUT_DIR / "pricing.xlsx"
 
 OUTPUT_COLUMNS = [
     "model",
+    "manufacturer_model",
     "description",
     "list_price",
     "distributor_cost",
@@ -83,38 +84,67 @@ def _resolve_content_csv(content_csv: Path) -> Path:
     raise FileNotFoundError(f"Content CSV not found: {content_csv}")
 
 
-def read_content_manufacturer_map(content_csv: Path) -> dict[str, str]:
+def read_content_product_map(content_csv: Path) -> tuple[dict[str, dict[str, str]], dict[str, dict[str, str]]]:
     with content_csv.open("r", encoding="utf-8-sig", newline="") as csv_file:
         reader = csv.DictReader(csv_file)
         if not reader.fieldnames:
             raise ValueError(f"Content licensing CSV has no header row: {content_csv}")
 
         prod_column = _find_column(reader.fieldnames, ("prod",), content_csv)
-        manufacturer_column = _find_column(
+        brand_column = _find_column(
             reader.fieldnames,
             (
-                "manufacturernumber",
-                "manufacturer_number",
+                "brand",
+                "marque",
                 "manufacturer",
                 "fabricant",
                 "mfr",
                 "mfg",
-                "brand",
-                "marque",
             ),
             content_csv,
         )
+        manufacturer_number_column = _find_column(
+            reader.fieldnames,
+            ("manufacturernumber", "manufacturer_number", "manufacturer_number_numero_fabricant"),
+            content_csv,
+        )
+        product_title_column = _find_column(
+            reader.fieldnames,
+            ("producttitle", "product_title", "english_description", "description"),
+            content_csv,
+        )
 
-        manufacturer_map: dict[str, str] = {}
+        product_by_sku: dict[str, dict[str, str]] = {}
+        product_by_manufacturer_model: dict[str, dict[str, str]] = {}
         for row in reader:
-            model = normalize_model(row.get(prod_column))
-            manufacturer = str(row.get(manufacturer_column) or "").strip()
-            if not model:
-                continue
-            if model not in manufacturer_map or (not manufacturer_map[model] and manufacturer):
-                manufacturer_map[model] = manufacturer
+            product = {
+                "sku": _coerce_text(row.get(prod_column)),
+                "manufacturer": _coerce_text(row.get(brand_column)),
+                "manufacturer_model": _coerce_text(row.get(manufacturer_number_column)),
+                "title": _coerce_text(row.get(product_title_column)),
+            }
+            sku_key = normalize_model(product["sku"])
+            manufacturer_model_key = normalize_model(product["manufacturer_model"])
 
-    return manufacturer_map
+            if not sku_key and not manufacturer_model_key:
+                continue
+
+            if sku_key and (
+                sku_key not in product_by_sku
+                or (not product_by_sku[sku_key].get("manufacturer") and product["manufacturer"])
+            ):
+                product_by_sku[sku_key] = product
+
+            if manufacturer_model_key and (
+                manufacturer_model_key not in product_by_manufacturer_model
+                or (
+                    not product_by_manufacturer_model[manufacturer_model_key].get("manufacturer")
+                    and product["manufacturer"]
+                )
+            ):
+                product_by_manufacturer_model[manufacturer_model_key] = product
+
+    return product_by_sku, product_by_manufacturer_model
 
 
 def _coerce_text(value: object) -> str:
@@ -191,7 +221,7 @@ def prepare_csv_for_supabase_ingest(csv_path: Path) -> tuple[Path, dict[str, int
 
 def generate_matched_scn_csv(content_csv: Path, pricing_xlsx: Path, output_csv: Path) -> dict[str, int]:
     resolved_content_csv = _resolve_content_csv(content_csv)
-    manufacturer_by_model = read_content_manufacturer_map(resolved_content_csv)
+    product_by_sku, product_by_manufacturer_model = read_content_product_map(resolved_content_csv)
 
     workbook = load_workbook(pricing_xlsx, data_only=True, read_only=True)
     output_csv.parent.mkdir(parents=True, exist_ok=True)
@@ -209,16 +239,25 @@ def generate_matched_scn_csv(content_csv: Path, pricing_xlsx: Path, output_csv: 
             for row in _sheet_rows_with_headers(worksheet):
                 total_rows += 1
                 normalized_row = {normalize_key(k): v for k, v in row.items() if k}
-                model = _coerce_text(normalized_row.get("model_no_no_modele") or normalized_row.get("mfg_model_no_no_fab"))
-                model_key = normalize_model(model)
+                pricing_model = _coerce_text(normalized_row.get("model_no_no_modele"))
+                pricing_mfg_model = _coerce_text(normalized_row.get("mfg_model_no_no_fab"))
+                model_key = normalize_model(pricing_model)
+                mfg_model_key = normalize_model(pricing_mfg_model)
 
-                if not model_key or model_key not in manufacturer_by_model:
+                matched_product = None
+                if model_key:
+                    matched_product = product_by_sku.get(model_key)
+                elif mfg_model_key:
+                    matched_product = product_by_manufacturer_model.get(mfg_model_key)
+
+                if not matched_product:
                     continue
 
                 description = _coerce_text(
-                    normalized_row.get("english_description_description_anglais")
+                    matched_product.get("title")
+                    or normalized_row.get("english_description_description_anglais")
                     or normalized_row.get("description")
-                    or model
+                    or matched_product.get("sku")
                 )
                 list_price = _coerce_text(normalized_row.get("list_price_prix_liste") or normalized_row.get("list_price"))
                 distributor_cost = _coerce_text(
@@ -230,9 +269,17 @@ def generate_matched_scn_csv(content_csv: Path, pricing_xlsx: Path, output_csv: 
                     or normalized_row.get("unite_de_vente")
                     or normalized_row.get("unit")
                 )
-                manufacturer = manufacturer_by_model.get(model_key, "")
+                manufacturer = _coerce_text(
+                    normalized_row.get("manufacturer_fabricant")
+                    or normalized_row.get("manufacturer")
+                    or matched_product.get("manufacturer")
+                )
+                model = _coerce_text(matched_product.get("sku"))
+                manufacturer_model = _coerce_text(
+                    matched_product.get("manufacturer_model") or pricing_mfg_model
+                )
                 warehouse = _coerce_text(sheet_name).upper()
-                composite_key = (model_key, manufacturer.strip().upper(), warehouse)
+                composite_key = (normalize_model(model), manufacturer.strip().upper(), warehouse)
                 if composite_key in seen_composite_keys:
                     continue
                 seen_composite_keys.add(composite_key)
@@ -240,6 +287,7 @@ def generate_matched_scn_csv(content_csv: Path, pricing_xlsx: Path, output_csv: 
                 writer.writerow(
                     {
                         "model": model,
+                        "manufacturer_model": manufacturer_model,
                         "description": description,
                         "list_price": list_price,
                         "distributor_cost": distributor_cost,

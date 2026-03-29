@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class SCNItem:
     model: str
+    manufacturer_model: str | None
     description: str
     list_price: float | None
     distributor_cost: float | None
@@ -131,7 +132,7 @@ class SCNCatalogService:
         endpoint = f"{settings.supabase_url}/rest/v1/{settings.scn_table}"
         timeout_seconds = 15
         params = {
-            "select": "model,description,list_price,distributor_cost,unit,manufacturer,warehouse",
+            "select": "model,manufacturer_model,description,list_price,distributor_cost,unit,manufacturer,warehouse",
             "order": "model.asc",
             "limit": "5000",
         }
@@ -181,6 +182,7 @@ class SCNCatalogService:
             rows.append(
                 SCNItem(
                     model=str(row.get("model") or ""),
+                    manufacturer_model=str(row.get("manufacturer_model")) if row.get("manufacturer_model") else None,
                     description=str(row.get("description") or ""),
                     list_price=self._parse_decimal(row.get("list_price")),
                     distributor_cost=self._parse_decimal(row.get("distributor_cost")),
@@ -212,6 +214,7 @@ class SCNCatalogService:
                 rows.append(
                     SCNItem(
                         model=model or "",
+                        manufacturer_model=row.get("manufacturer_model") or None,
                         description=description or model or "",
                         list_price=self._parse_decimal(row.get("list_price")),
                         distributor_cost=self._parse_decimal(row.get("distributor_cost")),
@@ -228,7 +231,9 @@ class SCNCatalogService:
         compact = re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
         aliases = {
             "model_no_no_modele": "model",
-            "mfg_model_no_no_fab": "model",
+            "mfg_model_no_no_fab": "manufacturer_model",
+            "manufacturernumber": "manufacturer_model",
+            "manufacturer_number": "manufacturer_model",
             "english_description_description_anglais": "description",
             "list_price_prix_liste": "list_price",
             "distributor_cost_cout_distributeur": "distributor_cost",
