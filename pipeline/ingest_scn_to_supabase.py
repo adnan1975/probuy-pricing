@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import csv
+import logging
 import os
 from pathlib import Path
 import re
@@ -36,6 +37,8 @@ OUTPUT_COLUMNS = [
     "manufacturer",
     "warehouse",
 ]
+
+LOGGER = logging.getLogger(__name__)
 
 
 def normalize_key(value: object) -> str:
@@ -116,6 +119,74 @@ def read_content_manufacturer_map(content_csv: Path) -> dict[str, str]:
 
 def _coerce_text(value: object) -> str:
     return str(value or "").strip()
+
+
+def _is_missing(value: object) -> bool:
+    if value is None:
+        return True
+    normalized = str(value).strip().lower()
+    return normalized in {"", "null", "none", "nan", "n/a"}
+
+
+def prepare_csv_for_supabase_ingest(csv_path: Path) -> tuple[Path, dict[str, int]]:
+    if not csv_path.exists():
+        raise FileNotFoundError(f"SCN CSV not found: {csv_path}")
+
+    filtered_csv_path = csv_path.with_name(f"{csv_path.stem}.filtered_for_ingest{csv_path.suffix}")
+
+    read_rows = 0
+    written_rows = 0
+    skipped_all_missing = 0
+    missing_model_or_manufacturer = 0
+
+    with csv_path.open("r", newline="", encoding="utf-8-sig") as in_handle:
+        reader = csv.DictReader(in_handle)
+        fieldnames = reader.fieldnames or []
+        if not fieldnames:
+            raise ValueError(f"CSV has no header row: {csv_path}")
+
+        with filtered_csv_path.open("w", newline="", encoding="utf-8") as out_handle:
+            writer = csv.DictWriter(out_handle, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for row in reader:
+                read_rows += 1
+                model = row.get("model")
+                manufacturer = row.get("manufacturer")
+                warehouse = row.get("warehouse")
+
+                missing_model = _is_missing(model)
+                missing_manufacturer = _is_missing(manufacturer)
+                missing_warehouse = _is_missing(warehouse)
+
+                if missing_model and missing_manufacturer and missing_warehouse:
+                    skipped_all_missing += 1
+                    LOGGER.warning(
+                        "Skipping CSV row %s (model/manufacturer/warehouse all missing): %s",
+                        read_rows,
+                        row,
+                    )
+                    continue
+
+                if missing_model or missing_manufacturer:
+                    missing_model_or_manufacturer += 1
+                    LOGGER.warning(
+                        "CSV row %s missing key field(s): model_missing=%s manufacturer_missing=%s row=%s",
+                        read_rows,
+                        missing_model,
+                        missing_manufacturer,
+                        row,
+                    )
+
+                writer.writerow(row)
+                written_rows += 1
+
+    return filtered_csv_path, {
+        "read": read_rows,
+        "written": written_rows,
+        "skipped_all_missing": skipped_all_missing,
+        "missing_model_or_manufacturer": missing_model_or_manufacturer,
+    }
 
 
 def generate_matched_scn_csv(content_csv: Path, pricing_xlsx: Path, output_csv: Path) -> dict[str, int]:
@@ -220,6 +291,8 @@ async def ingest_connector_prices(csv_path: Path) -> dict[str, int]:
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
     parser = argparse.ArgumentParser(
         description=(
             "Generate scn_pricing.csv from pricing/content licensing matched rows and ingest into Supabase"
@@ -266,11 +339,19 @@ def main() -> None:
             f"from {stats['processed']} processed pricing rows."
         )
 
+    prepared_csv, prep_stats = prepare_csv_for_supabase_ingest(selected_csv)
+    print(
+        f"Prepared ingest CSV {prepared_csv} from {prep_stats['read']} rows; "
+        f"kept {prep_stats['written']} rows; "
+        f"skipped {prep_stats['skipped_all_missing']} rows with model/manufacturer/warehouse all missing; "
+        f"logged {prep_stats['missing_model_or_manufacturer']} rows missing model and/or manufacturer."
+    )
+
     service = SCNBatchIngestService()
-    result = service.ingest_csv_to_supabase(csv_path=str(selected_csv))
+    result = service.ingest_csv_to_supabase(csv_path=str(prepared_csv))
     print(f"Read {result['read']} rows and upserted {result['upserted']} rows into Supabase.")
 
-    connector_stats = asyncio.run(ingest_connector_prices(selected_csv))
+    connector_stats = asyncio.run(ingest_connector_prices(prepared_csv))
     print(
         "Connector ingestion completed. "
         f"Processed {connector_stats['rows_processed']} rows, "
