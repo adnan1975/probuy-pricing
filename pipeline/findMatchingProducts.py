@@ -22,26 +22,6 @@ def _normalize(value: str | None) -> str:
     return " ".join((value or "").lower().split())
 
 
-def _build_queries(scn_result: NormalizedResult) -> list[str]:
-    """Search model first, then description, then manufacturer."""
-    candidates = [
-        (scn_result.sku or "").strip(),
-        (scn_result.title or "").strip(),
-        (scn_result.brand or "").strip(),
-    ]
-    queries: list[str] = []
-    seen: set[str] = set()
-    for candidate in candidates:
-        normalized = _normalize(candidate)
-        if not normalized:
-            continue
-        if normalized in seen:
-            continue
-        seen.add(normalized)
-        queries.append(candidate)
-    return queries
-
-
 def _tokens(value: str | None) -> set[str]:
     return {token for token in _normalize(value).replace("/", " ").replace("-", " ").split() if token}
 
@@ -97,43 +77,40 @@ async def find_first_match(min_score: int = 80, limit: int | None = None) -> int
         if limit is not None and checked >= limit:
             break
 
-        queries = _build_queries(scn_result)
-        if not queries:
+        query = (scn_result.sku or "").strip() or scn_result.title
+        if not query:
             continue
 
         checked += 1
-        print(f"[{checked}/{len(scn_results)}] Checking SCN product: {scn_result.sku or scn_result.title}")
-        print(f"  Query order: {queries}")
+        print(f"[{checked}/{len(scn_results)}] Checking SCN product: {query}")
 
-        for query in queries:
-            connector_results, errors, warnings = await search_service.collect_live_results(query)
+        connector_results, errors, warnings = await search_service.collect_live_results(query)
 
-            for source, error in errors.items():
-                print(f"  - {source} error (query='{query}'): {error}")
-            for source, warning in warnings.items():
-                print(f"  - {source} warning (query='{query}'): {warning}")
+        for source, error in errors.items():
+            print(f"  - {source} error: {error}")
+        for source, warning in warnings.items():
+            print(f"  - {source} warning: {warning}")
 
-            ranked_matches: list[tuple[int, NormalizedResult]] = []
-            for connector_result in connector_results:
-                score = _match_score(scn_result, connector_result)
-                if score >= min_score:
-                    ranked_matches.append((score, connector_result))
+        ranked_matches: list[tuple[int, NormalizedResult]] = []
+        for connector_result in connector_results:
+            score = _match_score(scn_result, connector_result)
+            if score >= min_score:
+                ranked_matches.append((score, connector_result))
 
-            if ranked_matches:
-                ranked_matches.sort(key=lambda item: item[0], reverse=True)
-                best_score, best_match = ranked_matches[0]
-                print("\nMatch found. Stopping scan.")
-                print(f"Matched using query: {query}")
-                print(f"SCN title: {scn_result.title}")
-                print(f"SCN sku/model: {scn_result.sku}")
-                print(f"SCN brand: {scn_result.brand}")
-                print(f"Matched source: {best_match.source}")
-                print(f"Matched title: {best_match.title}")
-                print(f"Matched sku: {best_match.sku}")
-                print(f"Matched brand: {best_match.brand}")
-                print(f"Matched URL: {best_match.product_url}")
-                print(f"Match score: {best_score}")
-                return 0
+        if ranked_matches:
+            ranked_matches.sort(key=lambda item: item[0], reverse=True)
+            best_score, best_match = ranked_matches[0]
+            print("\nMatch found. Stopping scan.")
+            print(f"SCN title: {scn_result.title}")
+            print(f"SCN sku/model: {scn_result.sku}")
+            print(f"SCN brand: {scn_result.brand}")
+            print(f"Matched source: {best_match.source}")
+            print(f"Matched title: {best_match.title}")
+            print(f"Matched sku: {best_match.sku}")
+            print(f"Matched brand: {best_match.brand}")
+            print(f"Matched URL: {best_match.product_url}")
+            print(f"Match score: {best_score}")
+            return 0
 
     print("No cross-connector product match found.")
     return 1
