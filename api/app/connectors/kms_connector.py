@@ -18,42 +18,39 @@ class KMSConnector(PlaywrightConnector):
     source_label = "KMS Tools"
     source_type = "retail"
     search_url_template = "https://www.kmstools.com/catalogsearch/result/?q={query}"
+
     selectors = {
-        # Keep KMS selectors centralized in case their Magento theme changes.
-        # TODO: Re-verify these selectors against live HTML periodically.
+        # Search result cards
         "cards": [
-            "li.product-item",
-            ".products.list.items.product-items li.item.product",
-            ".product-item-info",
+            "#product-list div.product-item.card",
+            ".products.wrapper .product-item.card",
+            "ul[role='list'] > li > div.product-item",
         ],
-        # Prefer user-facing anchors and titles over brittle nested selectors.
+
+        # Listing card fields
         "title": [
             "a.product-item-link",
-            "a[title][href*='.html']",
-            "a[href*='/product/']",
+            "a.product.photo.product-item-photo",
         ],
         "price": [
-            "span.price",
+            ".price-box .price",
             "[data-price-type='finalPrice'] .price",
-            "[data-price-amount]",
-            r"text=/\$\s*[0-9]/",
+            "span.price",
         ],
         "sku": [
-            ".product-item-sku",
-            "[data-role='sku']",
-            "text=/\bSKU\b|model\b/i",
+            ".text-xs.text-slate-500",
+            ".text-xs",
         ],
         "image": [
             "img.product-image-photo",
             "img[alt][src]",
         ],
         "availability": [
-            ".stock.available",
-            ".stock.unavailable",
-            "text=/in stock|out of stock|backorder/i",
+            "div[title='Availability'] span",
+            "div[title='Availability']",
         ],
-        # Product page selectors for exact-match redirects / single-result experiences.
-        # KMS can occasionally bypass the listing and land on a PDP directly.
+
+        # PDP fallback
         "pdp_title": [
             "h1.page-title .base",
             "h1.page-title span",
@@ -64,12 +61,11 @@ class KMSConnector(PlaywrightConnector):
             ".price-box .price",
             "[data-price-type='finalPrice'] .price",
             "span.price",
-            r"text=/\$\s*[0-9]/",
         ],
         "pdp_sku": [
             ".product.attribute.sku .value",
             "[data-th='SKU']",
-            "text=/\\bSKU\\b|model\\b/i",
+            #"text=/\\bSKU\\b|model\\b/i",
         ],
         "pdp_image": [
             "img.fotorama__img",
@@ -79,25 +75,22 @@ class KMSConnector(PlaywrightConnector):
         "pdp_availability": [
             ".stock.available",
             ".stock.unavailable",
-            "text=/in stock|out of stock|backorder/i",
+            #"text=/in stock|out of stock|backorder/i",
         ],
     }
 
     async def search(self, query: str) -> list[NormalizedResult]:
-        print(f"KMSConnector searching for: {query}")  # Debug log to verify search is called
-        print(f"KMSConnector async_playwright available: {async_playwright is not None}")  # Debug log to verify Playwright availability
-        print(f"KMSConnector search URL template: {self.search_url_template}")  # Debug log to verify URL template
+        print(f"KMSConnector searching for: {query}")
+        print(f"KMSConnector async_playwright available: {async_playwright is not None}")
+        print(f"KMSConnector search URL template: {self.search_url_template}")
+
         if not query.strip() or async_playwright is None:
-            print("KMSConnector missing query or Playwright; returning fallback results.")  # Debug log for fallback case   
+            print("KMSConnector missing query or Playwright; returning fallback results.")
             fallback = self.fallback_results(query)
             self.persist_results(query, fallback)
             return fallback
-        print("KMSConnector initializing Playwright search...")  # Debug log to verify Playwright is available
-        print(f"KMSConnector selectors: {self.selectors}")  # Debug log to verify selectors are set
-        print(f"KMSConnector search URL template: {self.search_url_template}")  # Debug log to verify URL template
-        print(f"KMSConnector timeout (ms): {self.timeout_ms}")  # Debug log to verify timeout setting
-        print(f"KMSConnector retries: {self.retries}")  # Debug log to verify retry setting
-        print(f"KMSConnector fallback results for '{query}': {self.fallback_results(query)}")  # Debug log to verify fallback results
+
+        print("KMSConnector initializing Playwright search...")
 
         for _ in range(self.retries):
             try:
@@ -106,9 +99,15 @@ class KMSConnector(PlaywrightConnector):
                     try:
                         page = await browser.new_page()
                         await self.open_search_page(page, query)
-                        print(f"KMSConnector opened search page for: {query}")  # Debug log to verify page load
+
+                        print(f"KMSConnector opened search page for: {query}")
+                        print(f"KMSConnector page URL after load: {page.url}")
+                        print(f"KMSConnector page content length: {len(await page.content())}")
+                        print(f"KMSConnector looking for result cards with selectors: {self.selectors['cards']}")
 
                         cards = await self.extract_result_cards(page)
+                        print(f"KMSConnector found {len(cards)} result cards for: {query}")
+
                         results: list[NormalizedResult] = []
                         for card in cards[: self.max_results]:
                             normalized = await self.normalize_result(page, card)
@@ -120,11 +119,13 @@ class KMSConnector(PlaywrightConnector):
                             if pdp_result is not None:
                                 results.append(pdp_result)
 
+                        print(f"KMSConnector extracted {len(results)} normalized results for: {query}")
                         self.persist_results(query, results)
                         return results
                     finally:
                         await browser.close()
-            except (PlaywrightTimeoutError, TimeoutError, OSError):
+            except (PlaywrightTimeoutError, TimeoutError, OSError) as exc:
+                print(f"KMSConnector retrying after error: {exc}")
                 await asyncio.sleep(0.4)
 
         fallback = self.fallback_results(query)
@@ -137,15 +138,19 @@ class KMSConnector(PlaywrightConnector):
 
     async def extract_result_cards(self, page):
         last_error: Exception | None = None
+
         for selector in self.selectors["cards"]:
             locator = page.locator(selector)
             try:
-                await locator.first.wait_for(state="visible", timeout=6000)
                 count = await locator.count()
+                print(f"KMS selector '{selector}' count={count}")
+
                 if count:
+                    await locator.first.wait_for(state="visible", timeout=6000)
                     return [locator.nth(i) for i in range(count)]
-            except Exception as exc:  # pragma: no cover - depends on live DOM
+            except Exception as exc:
                 last_error = exc
+                print(f"KMS selector failed '{selector}': {exc}")
                 continue
 
         if last_error is not None:
@@ -183,7 +188,6 @@ class KMSConnector(PlaywrightConnector):
             confidence = "Medium" if price_value is not None else "Low"
             why = "Matched on KMS Tools search card title + visible price."
             if price_value is None:
-                # TODO: KMS occasionally renders price in script/config payloads; add parser if needed.
                 why = "Matched on KMS Tools search card title; price not reliably visible on this card."
 
             return NormalizedResult(
@@ -202,8 +206,8 @@ class KMSConnector(PlaywrightConnector):
                 score=78 if price_value is not None else 60,
                 why=why,
             )
-        except Exception:
-            # One malformed card should never fail the whole connector.
+        except Exception as exc:
+            print(f"KMSConnector normalize_result failed: {exc}")
             return None
 
     async def normalize_product_page(self, page) -> NormalizedResult | None:
@@ -254,11 +258,11 @@ class KMSConnector(PlaywrightConnector):
                 score=76 if price_value is not None else 58,
                 why=why,
             )
-        except Exception:
+        except Exception as exc:
+            print(f"KMSConnector normalize_product_page failed: {exc}")
             return None
 
     def fallback_results(self, query: str) -> list[NormalizedResult]:
-        # Guarded fallback while live KMS HTML can vary by anti-bot and theme changes.
         return build_mock_result(query, self.source, self.source_label)
 
     @staticmethod
@@ -276,15 +280,16 @@ class KMSConnector(PlaywrightConnector):
     def _extract_sku(raw: str | None) -> str | None:
         if not raw:
             return None
+
         match = re.search(r"(?:sku|model)\s*[:#]?\s*([A-Z0-9-]{4,})", raw, re.IGNORECASE)
         if match:
             return match.group(1)
+
         fallback = re.search(r"\b([A-Z0-9-]{5,})\b", raw)
         return fallback.group(1) if fallback else None
 
     @staticmethod
     def _extract_brand(title: str) -> str | None:
-        # Fragile assumption: first token is usually the display brand on listing cards.
         first = title.split(" ", 1)[0].strip("-_/ ")
         if not first:
             return None
