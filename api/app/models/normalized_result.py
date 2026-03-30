@@ -11,6 +11,7 @@ class NormalizedResult(BaseModel):
     price_value: float | None = None
     currency: str = "CAD"
     sku: str | None = None
+    manufacturer_model: str | None = None
     brand: str | None = None
     availability: str = "Unknown"
     location: str | None = None
@@ -59,6 +60,7 @@ class ConnectorSearchResponse(BaseModel):
 
 class CatalogItem(BaseModel):
     model: str
+    manufacturer_model: str | None = None
     description: str
     list_price: float | None = None
     distributor_cost: float | None = None
