@@ -84,10 +84,20 @@ class KMSConnector(PlaywrightConnector):
     }
 
     async def search(self, query: str) -> list[NormalizedResult]:
+        print(f"KMSConnector searching for: {query}")  # Debug log to verify search is called
+        print(f"KMSConnector async_playwright available: {async_playwright is not None}")  # Debug log to verify Playwright availability
+        print(f"KMSConnector search URL template: {self.search_url_template}")  # Debug log to verify URL template
         if not query.strip() or async_playwright is None:
+            print("KMSConnector missing query or Playwright; returning fallback results.")  # Debug log for fallback case   
             fallback = self.fallback_results(query)
             self.persist_results(query, fallback)
             return fallback
+        print("KMSConnector initializing Playwright search...")  # Debug log to verify Playwright is available
+        print(f"KMSConnector selectors: {self.selectors}")  # Debug log to verify selectors are set
+        print(f"KMSConnector search URL template: {self.search_url_template}")  # Debug log to verify URL template
+        print(f"KMSConnector timeout (ms): {self.timeout_ms}")  # Debug log to verify timeout setting
+        print(f"KMSConnector retries: {self.retries}")  # Debug log to verify retry setting
+        print(f"KMSConnector fallback results for '{query}': {self.fallback_results(query)}")  # Debug log to verify fallback results
 
         for _ in range(self.retries):
             try:
@@ -96,6 +106,7 @@ class KMSConnector(PlaywrightConnector):
                     try:
                         page = await browser.new_page()
                         await self.open_search_page(page, query)
+                        print(f"KMSConnector opened search page for: {query}")  # Debug log to verify page load
 
                         cards = await self.extract_result_cards(page)
                         results: list[NormalizedResult] = []
