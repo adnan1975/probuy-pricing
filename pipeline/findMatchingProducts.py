@@ -27,6 +27,12 @@ def _tokens(value: str | None) -> set[str]:
 
 
 def _match_score(scn_result: NormalizedResult, connector_result: NormalizedResult) -> int:
+    score, _ = _match_score_breakdown(scn_result, connector_result)
+    return score
+
+
+def _match_score_breakdown(scn_result: NormalizedResult, connector_result: NormalizedResult) -> tuple[int, list[str]]:
+    reasons: list[str] = []
     score = 0
 
     scn_sku = _normalize(scn_result.sku)
@@ -34,30 +40,40 @@ def _match_score(scn_result: NormalizedResult, connector_result: NormalizedResul
     target_sku = _normalize(connector_result.sku)
     target_title = _normalize(connector_result.title)
 
-    if scn_sku:
-        if target_sku and scn_sku == target_sku:
-            score += 90
-        elif scn_sku in target_title:
-            score += 80
+    if scn_sku and target_sku and scn_sku == target_sku:
+        score += 90
+        reasons.append("exact sku match (+90)")
+    elif scn_sku and target_title and scn_sku in target_title:
+        score += 80
+        reasons.append("sku found in title (+80)")
+    else:
+        reasons.append("no sku evidence (+0)")
 
-    if scn_manufacturer_model:
-        if target_sku and scn_manufacturer_model == target_sku:
-            score += 85
-        elif scn_manufacturer_model in target_title:
-            score += 75
+    if scn_manufacturer_model and target_sku and scn_manufacturer_model == target_sku:
+        score += 85
+        reasons.append("manufacturer model == target sku (+85)")
+    elif scn_manufacturer_model and target_title and scn_manufacturer_model in target_title:
+        score += 75
+        reasons.append("manufacturer model found in title (+75)")
+    else:
+        reasons.append("no manufacturer model evidence (+0)")
 
     scn_brand = _normalize(scn_result.brand)
     target_brand = _normalize(connector_result.brand)
     if scn_brand and target_brand and scn_brand == target_brand:
         score += 10
+        reasons.append("brand match (+10)")
+    else:
+        reasons.append("brand mismatch or missing (+0)")
 
     scn_tokens = _tokens(scn_result.title)
     target_tokens = _tokens(connector_result.title)
-    if scn_tokens and target_tokens:
-        overlap = len(scn_tokens.intersection(target_tokens))
-        score += min(20, overlap * 2)
+    overlap = len(scn_tokens.intersection(target_tokens)) if scn_tokens and target_tokens else 0
+    token_points = min(20, overlap * 2)
+    score += token_points
+    reasons.append(f"title token overlap={overlap} (+{token_points})")
 
-    return score
+    return score, reasons
 
 
 def _candidate_queries(scn_result: NormalizedResult) -> list[str]:
@@ -96,6 +112,10 @@ async def find_first_match(min_score: int = 80, limit: int | None = None) -> int
             print(f"SCN warning: {warning}")
         return 1
 
+    total_candidates = len(scn_results) if limit is None else min(limit, len(scn_results))
+    print(f"Loaded {len(scn_results)} SCN products from source '{scn_connector.catalog_service.last_load_source}'.")
+    print(f"Will scan up to {total_candidates} products (use --limit to control this).")
+
     checked = 0
     for scn_result in scn_results:
         if limit is not None and checked >= limit:
@@ -112,10 +132,14 @@ async def find_first_match(min_score: int = 80, limit: int | None = None) -> int
             + " | ".join(queries)
         )
 
-        ranked_matches: list[tuple[int, NormalizedResult]] = []
+        ranked_matches: list[tuple[int, NormalizedResult, str]] = []
         seen_result_keys: set[tuple[str, str, str]] = set()
+        attempted_results = 0
+        per_query_counts: dict[str, int] = {}
         for query in queries:
             connector_results, errors, warnings = await search_service.collect_live_results(query)
+            per_query_counts[query] = len(connector_results)
+            attempted_results += len(connector_results)
 
             for source, error in errors.items():
                 print(f"  - {source} error ({query}): {error}")
@@ -131,13 +155,19 @@ async def find_first_match(min_score: int = 80, limit: int | None = None) -> int
                 if result_key in seen_result_keys:
                     continue
                 seen_result_keys.add(result_key)
-                score = _match_score(scn_result, connector_result)
+                score, reasons = _match_score_breakdown(scn_result, connector_result)
                 if score >= min_score:
-                    ranked_matches.append((score, connector_result))
+                    ranked_matches.append((score, connector_result, "; ".join(reasons)))
+
+        per_query_detail = ", ".join(f"{query}={count}" for query, count in per_query_counts.items())
+        print(
+            f"  Connector results checked: {attempted_results} "
+            f"(unique: {len(seen_result_keys)} | by query: {per_query_detail})"
+        )
 
         if ranked_matches:
             ranked_matches.sort(key=lambda item: item[0], reverse=True)
-            best_score, best_match = ranked_matches[0]
+            best_score, best_match, best_reasons = ranked_matches[0]
             print("\nMatch found. Stopping scan.")
             print(f"SCN title: {scn_result.title}")
             print(f"SCN sku/model: {scn_result.sku}")
@@ -149,7 +179,10 @@ async def find_first_match(min_score: int = 80, limit: int | None = None) -> int
             print(f"Matched brand: {best_match.brand}")
             print(f"Matched URL: {best_match.product_url}")
             print(f"Match score: {best_score}")
+            print(f"Score breakdown: {best_reasons}")
             return 0
+        else:
+            print(f"  No candidates reached min score {min_score}.")
 
     print("No cross-connector product match found.")
     return 1
