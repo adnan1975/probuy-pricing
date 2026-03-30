@@ -49,6 +49,7 @@ class SearchServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_connectors_execute_in_parallel(self):
         service = SearchService(
             connectors=[
+                DelayedConnector("SCN Pricing", delay_seconds=0.25, price_value=10, source_type="distributor"),
                 DelayedConnector("A Source", delay_seconds=0.25, price_value=10),
                 DelayedConnector("B Source", delay_seconds=0.25, price_value=20),
                 DelayedConnector("C Source", delay_seconds=0.25, price_value=30),
@@ -59,12 +60,14 @@ class SearchServiceTests(unittest.IsolatedAsyncioTestCase):
         response = await service.search("dewalt grinder")
         elapsed = time.perf_counter() - started
 
-        self.assertEqual(len(response.results), 3)
+        self.assertEqual(len(response.results), 4)
+        self.assertEqual(response.results[0].source, "SCN Pricing")
         self.assertLess(elapsed, 0.60)
 
     async def test_connector_failure_is_isolated(self):
         service = SearchService(
             connectors=[
+                DelayedConnector("SCN Pricing", delay_seconds=0.01, price_value=19.0, source_type="distributor"),
                 DelayedConnector("Working Source", delay_seconds=0.01, price_value=15.0),
                 FailingConnector(),
             ]
@@ -73,13 +76,14 @@ class SearchServiceTests(unittest.IsolatedAsyncioTestCase):
         response = await service.search("sf201af")
 
         self.assertEqual(response.query, "sf201af")
-        self.assertEqual(len(response.results), 1)
+        self.assertEqual(len(response.results), 2)
         self.assertIn("Failing Source", response.per_source_errors)
         self.assertIn("simulated connector failure", response.per_source_errors["Failing Source"])
 
     async def test_response_shape_analysis_and_normalized_schema(self):
         service = SearchService(
             connectors=[
+                DelayedConnector("SCN Pricing", delay_seconds=0.01, price_value=12.0, source_type="distributor"),
                 DelayedConnector("White Cap", delay_seconds=0.01, price_value=18.0, source_type="distributor"),
                 DelayedConnector("Home Depot", delay_seconds=0.01, price_value=24.0, source_type="retail"),
             ]
@@ -89,11 +93,11 @@ class SearchServiceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.query, "3m sf201af")
         self.assertIsInstance(response.results, list)
-        self.assertEqual(response.analysis.lowest_price, 18.0)
+        self.assertEqual(response.analysis.lowest_price, 12.0)
         self.assertEqual(response.analysis.highest_price, 24.0)
-        self.assertEqual(response.analysis.average_price, 21.0)
-        self.assertEqual(response.analysis.total_results, 2)
-        self.assertEqual(response.analysis.priced_results, 2)
+        self.assertEqual(response.analysis.average_price, 18.0)
+        self.assertEqual(response.analysis.total_results, 3)
+        self.assertEqual(response.analysis.priced_results, 3)
         self.assertEqual(response.per_source_errors, {})
 
         expected_fields = {
@@ -117,3 +121,16 @@ class SearchServiceTests(unittest.IsolatedAsyncioTestCase):
 
         for result in response.results:
             self.assertEqual(set(result.model_dump().keys()), expected_fields)
+
+    async def test_suppresses_results_when_scn_is_missing(self):
+        service = SearchService(
+            connectors=[
+                DelayedConnector("KMS Tools", delay_seconds=0.01, price_value=42.0, source_type="retail"),
+                DelayedConnector("Home Depot", delay_seconds=0.01, price_value=44.0, source_type="retail"),
+            ]
+        )
+
+        response = await service.search("dcbl722b")
+
+        self.assertEqual(response.results, [])
+        self.assertEqual(response.analysis.total_results, 0)
