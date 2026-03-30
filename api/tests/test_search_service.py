@@ -104,6 +104,7 @@ class SearchServiceTests(unittest.IsolatedAsyncioTestCase):
             "price_value",
             "currency",
             "sku",
+            "manufacturer_model",
             "brand",
             "availability",
             "location",

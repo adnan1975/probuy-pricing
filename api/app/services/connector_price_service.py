@@ -38,6 +38,7 @@ class ConnectorPriceService:
                     "search_query": query.strip(),
                     "source": item.source,
                     "sku": item.sku,
+                    "manufacturer_model": item.manufacturer_model,
                     "title": item.title,
                     "price": item.price_value,
                     "available": item.availability,
@@ -78,7 +79,7 @@ class ConnectorPriceService:
         }
 
         params = {
-            "select": "source,source_type,title,price_text,price,sku,available,location,currency,product_url,image_url,confidence,why,date_created",
+            "select": "source,source_type,title,price_text,price,sku,manufacturer_model,available,location,currency,product_url,image_url,confidence,why,date_created",
             "order": "date_created.desc",
             "limit": str(page_size),
             "offset": str((page - 1) * page_size),
@@ -103,6 +104,7 @@ class ConnectorPriceService:
                     price_value=float(row["price"]) if row.get("price") is not None else None,
                     currency=str(row.get("currency") or "CAD"),
                     sku=row.get("sku"),
+                    manufacturer_model=row.get("manufacturer_model"),
                     availability=str(row.get("available") or "Unknown"),
                     location=row.get("location"),
                     product_url=row.get("product_url"),

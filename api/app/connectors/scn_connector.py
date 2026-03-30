@@ -35,6 +35,7 @@ class SCNConnector(BaseConnector):
                     price_value=price_value,
                     currency="CAD",
                     sku=item.model or None,
+                    manufacturer_model=item.manufacturer_model or None,
                     brand=item.manufacturer,
                     availability="Catalog Item",
                     location=item.warehouse,

@@ -88,7 +88,11 @@ class SCNCatalogService:
                     item
                     for item in items
                     if all(
-                        token in f"{item.model} {item.description} {item.manufacturer or ''}".lower()
+                        token
+                        in (
+                            f"{item.model} {item.manufacturer_model or ''} "
+                            f"{item.description} {item.manufacturer or ''}"
+                        ).lower()
                         for token in query_tokens
                     )
                 ]
@@ -140,7 +144,8 @@ class SCNCatalogService:
         if normalized_query:
             escaped = normalized_query.replace("*", "").replace(",", " ")
             params["or"] = (
-                f"(model.ilike.*{escaped}*,description.ilike.*{escaped}*,manufacturer.ilike.*{escaped}*)"
+                f"(model.ilike.*{escaped}*,manufacturer_model.ilike.*{escaped}*,"
+                f"description.ilike.*{escaped}*,manufacturer.ilike.*{escaped}*)"
             )
         headers = {
             "apikey": settings.supabase_service_role_key,

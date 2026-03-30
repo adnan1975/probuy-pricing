@@ -30,6 +30,7 @@ def _match_score(scn_result: NormalizedResult, connector_result: NormalizedResul
     score = 0
 
     scn_sku = _normalize(scn_result.sku)
+    scn_manufacturer_model = _normalize(scn_result.manufacturer_model)
     target_sku = _normalize(connector_result.sku)
     target_title = _normalize(connector_result.title)
 
@@ -38,6 +39,12 @@ def _match_score(scn_result: NormalizedResult, connector_result: NormalizedResul
             score += 90
         elif scn_sku in target_title:
             score += 80
+
+    if scn_manufacturer_model:
+        if target_sku and scn_manufacturer_model == target_sku:
+            score += 85
+        elif scn_manufacturer_model in target_title:
+            score += 75
 
     scn_brand = _normalize(scn_result.brand)
     target_brand = _normalize(connector_result.brand)
@@ -51,6 +58,23 @@ def _match_score(scn_result: NormalizedResult, connector_result: NormalizedResul
         score += min(20, overlap * 2)
 
     return score
+
+
+def _candidate_queries(scn_result: NormalizedResult) -> list[str]:
+    candidates = [
+        (scn_result.manufacturer_model or "").strip(),
+        (scn_result.sku or "").strip(),
+        (scn_result.title or "").strip(),
+    ]
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for value in candidates:
+        key = _normalize(value)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(value)
+    return deduped
 
 
 async def find_first_match(min_score: int = 80, limit: int | None = None) -> int:
@@ -77,25 +101,39 @@ async def find_first_match(min_score: int = 80, limit: int | None = None) -> int
         if limit is not None and checked >= limit:
             break
 
-        query = (scn_result.sku or "").strip() or scn_result.title
-        if not query:
+        queries = _candidate_queries(scn_result)
+        if not queries:
             continue
 
         checked += 1
-        print(f"[{checked}/{len(scn_results)}] Checking SCN product: {query}")
-
-        connector_results, errors, warnings = await search_service.collect_live_results(query)
-
-        for source, error in errors.items():
-            print(f"  - {source} error: {error}")
-        for source, warning in warnings.items():
-            print(f"  - {source} warning: {warning}")
+        print(f"[{checked}/{len(scn_results)}] Checking SCN product: {queries[0]}")
+        print(
+            "  Query order: "
+            + " | ".join(queries)
+        )
 
         ranked_matches: list[tuple[int, NormalizedResult]] = []
-        for connector_result in connector_results:
-            score = _match_score(scn_result, connector_result)
-            if score >= min_score:
-                ranked_matches.append((score, connector_result))
+        seen_result_keys: set[tuple[str, str, str]] = set()
+        for query in queries:
+            connector_results, errors, warnings = await search_service.collect_live_results(query)
+
+            for source, error in errors.items():
+                print(f"  - {source} error ({query}): {error}")
+            for source, warning in warnings.items():
+                print(f"  - {source} warning ({query}): {warning}")
+
+            for connector_result in connector_results:
+                result_key = (
+                    _normalize(connector_result.source),
+                    _normalize(connector_result.sku),
+                    _normalize(connector_result.title),
+                )
+                if result_key in seen_result_keys:
+                    continue
+                seen_result_keys.add(result_key)
+                score = _match_score(scn_result, connector_result)
+                if score >= min_score:
+                    ranked_matches.append((score, connector_result))
 
         if ranked_matches:
             ranked_matches.sort(key=lambda item: item[0], reverse=True)
@@ -103,6 +141,7 @@ async def find_first_match(min_score: int = 80, limit: int | None = None) -> int
             print("\nMatch found. Stopping scan.")
             print(f"SCN title: {scn_result.title}")
             print(f"SCN sku/model: {scn_result.sku}")
+            print(f"SCN manufacturer model: {scn_result.manufacturer_model}")
             print(f"SCN brand: {scn_result.brand}")
             print(f"Matched source: {best_match.source}")
             print(f"Matched title: {best_match.title}")

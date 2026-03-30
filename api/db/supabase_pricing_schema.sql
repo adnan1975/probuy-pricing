@@ -54,6 +54,7 @@ create table if not exists pricing.connector_prices (
   source text not null,
   source_type text not null default 'retail',
   sku text,
+  manufacturer_model text,
   title text not null,
   price numeric(12,2),
   price_text text,
@@ -68,11 +69,13 @@ create table if not exists pricing.connector_prices (
 );
 
 alter table pricing.connector_prices
-  add column if not exists location text;
+  add column if not exists location text,
+  add column if not exists manufacturer_model text;
 
 create index if not exists idx_connector_prices_query on pricing.connector_prices (search_query);
 create index if not exists idx_connector_prices_source on pricing.connector_prices (source);
 create index if not exists idx_connector_prices_sku on pricing.connector_prices (sku);
+create index if not exists idx_connector_prices_manufacturer_model on pricing.connector_prices (manufacturer_model);
 create index if not exists idx_connector_prices_location on pricing.connector_prices (location);
 create index if not exists idx_connector_prices_date_created on pricing.connector_prices (date_created desc);
 create index if not exists idx_connector_prices_title_fts on pricing.connector_prices using gin (to_tsvector('simple', title));
