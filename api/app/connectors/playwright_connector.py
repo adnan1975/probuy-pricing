@@ -6,14 +6,13 @@ from abc import abstractmethod
 from urllib.parse import quote_plus
 
 from app.connectors.base import BaseConnector
+from app.connectors.playwright_lifecycle import playwright_lifecycle
 from app.models.normalized_result import NormalizedResult
 
 try:
     from playwright.async_api import Error as PlaywrightError
     from playwright.async_api import TimeoutError as PlaywrightTimeoutError
-    from playwright.async_api import async_playwright
 except Exception:  # pragma: no cover - exercised in environments without playwright
-    async_playwright = None
     PlaywrightError = Exception
     PlaywrightTimeoutError = TimeoutError
 
@@ -27,30 +26,34 @@ class PlaywrightConnector(BaseConnector):
     selectors: dict[str, list[str] | str] = {}
 
     async def search(self, query: str) -> list[NormalizedResult]:
-        if not query.strip() or async_playwright is None:
+        if not query.strip() or not playwright_lifecycle.available:
             fallback = self.fallback_results(query)
             self.persist_results(query, fallback)
             return fallback
 
         for _ in range(self.retries):
+            context = None
+            page = None
             try:
-                async with async_playwright() as playwright:
-                    browser = await playwright.chromium.launch(headless=True)
-                    try:
-                        page = await browser.new_page()
-                        await self.open_search_page(page, query)
-                        cards = await self.extract_result_cards(page)
-                        results: list[NormalizedResult] = []
-                        for card in cards[: self.max_results]:
-                            normalized = await self.normalize_result(page, card)
-                            if normalized:
-                                results.append(normalized)
-                        self.persist_results(query, results)
-                        return results
-                    finally:
-                        await browser.close()
+                browser = await playwright_lifecycle.get_browser()
+                context = await browser.new_context()
+                page = await context.new_page()
+                await self.open_search_page(page, query)
+                cards = await self.extract_result_cards(page)
+                results: list[NormalizedResult] = []
+                for card in cards[: self.max_results]:
+                    normalized = await self.normalize_result(page, card)
+                    if normalized:
+                        results.append(normalized)
+                self.persist_results(query, results)
+                return results
             except (PlaywrightError, PlaywrightTimeoutError, TimeoutError, OSError):
                 await asyncio.sleep(0.4)
+            finally:
+                if page is not None:
+                    await page.close()
+                if context is not None:
+                    await context.close()
 
         fallback = self.fallback_results(query)
         self.persist_results(query, fallback)
