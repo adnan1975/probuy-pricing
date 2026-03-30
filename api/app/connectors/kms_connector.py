@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import re
 from urllib.parse import quote_plus, urljoin
 
 from app.connectors.mock_catalog import build_mock_result
-from app.connectors.playwright_connector import PlaywrightConnector
+from app.connectors.playwright_connector import (
+    PlaywrightConnector,
+    PlaywrightTimeoutError,
+    async_playwright,
+)
 from app.models.normalized_result import NormalizedResult
 
 
@@ -47,7 +52,73 @@ class KMSConnector(PlaywrightConnector):
             ".stock.unavailable",
             "text=/in stock|out of stock|backorder/i",
         ],
+        # Product page selectors for exact-match redirects / single-result experiences.
+        # KMS can occasionally bypass the listing and land on a PDP directly.
+        "pdp_title": [
+            "h1.page-title .base",
+            "h1.page-title span",
+            "h1.page-title",
+            "h1",
+        ],
+        "pdp_price": [
+            ".price-box .price",
+            "[data-price-type='finalPrice'] .price",
+            "span.price",
+            r"text=/\$\s*[0-9]/",
+        ],
+        "pdp_sku": [
+            ".product.attribute.sku .value",
+            "[data-th='SKU']",
+            "text=/\\bSKU\\b|model\\b/i",
+        ],
+        "pdp_image": [
+            "img.fotorama__img",
+            "img.gallery-placeholder__image",
+            "img[alt][src]",
+        ],
+        "pdp_availability": [
+            ".stock.available",
+            ".stock.unavailable",
+            "text=/in stock|out of stock|backorder/i",
+        ],
     }
+
+    async def search(self, query: str) -> list[NormalizedResult]:
+        if not query.strip() or async_playwright is None:
+            fallback = self.fallback_results(query)
+            self.persist_results(query, fallback)
+            return fallback
+
+        for _ in range(self.retries):
+            try:
+                async with async_playwright() as playwright:
+                    browser = await playwright.chromium.launch(headless=True)
+                    try:
+                        page = await browser.new_page()
+                        await self.open_search_page(page, query)
+
+                        cards = await self.extract_result_cards(page)
+                        results: list[NormalizedResult] = []
+                        for card in cards[: self.max_results]:
+                            normalized = await self.normalize_result(page, card)
+                            if normalized:
+                                results.append(normalized)
+
+                        if not results:
+                            pdp_result = await self.normalize_product_page(page)
+                            if pdp_result is not None:
+                                results.append(pdp_result)
+
+                        self.persist_results(query, results)
+                        return results
+                    finally:
+                        await browser.close()
+            except (PlaywrightTimeoutError, TimeoutError, OSError):
+                await asyncio.sleep(0.4)
+
+        fallback = self.fallback_results(query)
+        self.persist_results(query, fallback)
+        return fallback
 
     async def open_search_page(self, page, query: str) -> None:
         target = self.search_url_template.format(query=quote_plus(query))
@@ -122,6 +193,57 @@ class KMSConnector(PlaywrightConnector):
             )
         except Exception:
             # One malformed card should never fail the whole connector.
+            return None
+
+    async def normalize_product_page(self, page) -> NormalizedResult | None:
+        try:
+            title_node = page.locator(self._selector_union("pdp_title")).first
+            if not await title_node.count():
+                return None
+
+            title = self._clean(await title_node.inner_text())
+            if not title:
+                return None
+
+            price_node = page.locator(self._selector_union("pdp_price")).first
+            price_text = self._clean(await price_node.inner_text()) if await price_node.count() else None
+            normalized_price, price_value = self.parse_price(price_text)
+
+            sku_node = page.locator(self._selector_union("pdp_sku")).first
+            raw_sku = self._clean(await sku_node.inner_text()) if await sku_node.count() else None
+            sku = self._extract_sku(raw_sku)
+
+            image_node = page.locator(self._selector_union("pdp_image")).first
+            image_src = await image_node.get_attribute("src") if await image_node.count() else None
+            image_url = self._absolute_url(image_src)
+
+            availability_node = page.locator(self._selector_union("pdp_availability")).first
+            availability = self._clean(await availability_node.inner_text()) if await availability_node.count() else None
+
+            confidence = "Medium" if price_value is not None else "Low"
+            why = (
+                "Matched on KMS Tools product page fallback (exact/single result redirect)."
+                if price_value is not None
+                else "Matched on KMS Tools product page fallback, but no visible price was found."
+            )
+
+            return NormalizedResult(
+                source=self.source_label,
+                source_type=self.source_type,
+                title=title,
+                price_text=normalized_price,
+                price_value=price_value,
+                currency="CAD",
+                sku=sku,
+                brand=self._extract_brand(title),
+                availability=availability or "Unknown",
+                product_url=page.url,
+                image_url=image_url,
+                confidence=confidence,
+                score=76 if price_value is not None else 58,
+                why=why,
+            )
+        except Exception:
             return None
 
     def fallback_results(self, query: str) -> list[NormalizedResult]:
