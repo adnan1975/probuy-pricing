@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import "./App.css";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
@@ -18,6 +18,7 @@ function App() {
   const [pageSize, setPageSize] = useState(25);
   const [totalPages, setTotalPages] = useState(0);
   const [totalResults, setTotalResults] = useState(0);
+  const [expandedRows, setExpandedRows] = useState({});
 
   const trimmedQuery = query.trim();
   const canSearch = trimmedQuery.length >= MIN_QUERY_LENGTH;
@@ -90,6 +91,42 @@ function App() {
 
   const visibleResults = scnPrimaryResults;
 
+  const relatedOffersByRow = useMemo(() => {
+    const nonScnResults = results.filter((item) => item.source !== "SCN Pricing");
+
+    function tokenize(value) {
+      return String(value || "")
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((token) => token.length >= 4);
+    }
+
+    return visibleResults.reduce((acc, primary, idx) => {
+      const keys = new Set([
+        String(primary.sku || "").toLowerCase(),
+        String(primary.manufacturer_model || "").toLowerCase()
+      ].filter(Boolean));
+
+      tokenize(primary.title).forEach((token) => keys.add(token));
+
+      const offers = nonScnResults.filter((offer) => {
+        const candidate = [offer.sku, offer.manufacturer_model, offer.title]
+          .map((entry) => String(entry || "").toLowerCase())
+          .join(" ");
+
+        for (const key of keys) {
+          if (key && candidate.includes(key)) {
+            return true;
+          }
+        }
+        return false;
+      });
+
+      acc[idx] = offers;
+      return acc;
+    }, {});
+  }, [results, visibleResults]);
+
   function formatSuggestedPrice(item) {
     const suggestedPriceValue = typeof item.suggested_price === "number" ? item.suggested_price : item.price_value;
     if (typeof suggestedPriceValue !== "number") {
@@ -101,11 +138,17 @@ function App() {
   function handleQueryChange(value) {
     setQuery(value);
     setPage(1);
+    setExpandedRows({});
   }
 
   function handlePageSizeChange(value) {
     setPageSize(Number(value));
     setPage(1);
+    setExpandedRows({});
+  }
+
+  function toggleDetails(index) {
+    setExpandedRows((prev) => ({ ...prev, [index]: !prev[index] }));
   }
 
   return (
@@ -202,29 +245,57 @@ function App() {
               <tbody>
                 {visibleResults.map((item, idx) => {
                   const rowKey = `${item.source}-${idx}`;
+                  const relatedOffers = relatedOffersByRow[idx] || [];
+                  const isExpanded = Boolean(expandedRows[idx]);
                   return (
-                    <tr key={rowKey}>
-                      <td>{(page - 1) * pageSize + idx + 1}</td>
-                      <td>
-                        <div className="table-strong">{item.source}</div>
-                        <div className="table-sub">
-                          <span className={`pill ${item.source_type === "distributor" ? "green" : "blue"}`}>
-                            {item.source_type || "retail"}
-                          </span>
-                        </div>
-                      </td>
-                      <td>{item.title}</td>
-                      <td>{item.sku || "N/A"}</td>
-                      <td>{item.location || item.warehouse_location || item.warehouse || "N/A"}</td>
-                      <td>{item.price_text || "Price unavailable"}</td>
-                      <td>{item.availability || "Unknown"}</td>
-                      <td className="suggested-price">{formatSuggestedPrice(item)}</td>
-                      <td>
-                        <button className="publish-btn" type="button">
-                          Publish Price
-                        </button>
-                      </td>
-                    </tr>
+                    <Fragment key={rowKey}>
+                      <tr>
+                        <td>{(page - 1) * pageSize + idx + 1}</td>
+                        <td>
+                          <div className="table-strong">{item.source}</div>
+                          <div className="table-sub">
+                            <span className={`pill ${item.source_type === "distributor" ? "green" : "blue"}`}>
+                              {item.source_type || "retail"}
+                            </span>
+                          </div>
+                        </td>
+                        <td>{item.title}</td>
+                        <td>{item.sku || "N/A"}</td>
+                        <td>{item.location || item.warehouse_location || item.warehouse || "N/A"}</td>
+                        <td>{item.price_text || "Price unavailable"}</td>
+                        <td>{item.availability || "Unknown"}</td>
+                        <td className="suggested-price">{formatSuggestedPrice(item)}</td>
+                        <td>
+                          <button className="publish-btn" type="button">
+                            Publish Price
+                          </button>
+                          <button
+                            className="details-btn"
+                            type="button"
+                            onClick={() => toggleDetails(idx)}
+                            disabled={relatedOffers.length === 0}
+                          >
+                            {isExpanded ? "Hide Details" : "Show Details"}
+                          </button>
+                        </td>
+                      </tr>
+                      {isExpanded && relatedOffers.length > 0 && (
+                        <tr className="details-row">
+                          <td colSpan={9}>
+                            <div className="details-title">Connector prices for {item.sku || item.title}</div>
+                            <div className="details-grid">
+                              {relatedOffers.map((offer, offerIndex) => (
+                                <div className="details-card" key={`${offer.source}-${offerIndex}`}>
+                                  <div className="table-strong">{offer.source}</div>
+                                  <div>{offer.price_text || "Price unavailable"}</div>
+                                  <div className="table-sub">{offer.availability || "Unknown"}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>

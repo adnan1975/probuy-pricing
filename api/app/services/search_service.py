@@ -77,6 +77,7 @@ class SearchService:
                 total_results = len(stored_results)
 
         ranked_results = self.matching_service.apply(query, stored_results)
+        ranked_results = self._enforce_scn_priority(ranked_results)
         analysis = self.analysis_service.build(
             ranked_results,
             per_source_errors=per_source_errors,
@@ -97,6 +98,30 @@ class SearchService:
             total_results=total_results,
             per_source_errors=per_source_errors,
             per_source_warnings=per_source_warnings,
+        )
+
+    @staticmethod
+    def _is_scn_result(result: NormalizedResult) -> bool:
+        normalized_source = (result.source or "").strip().lower().replace("_", " ")
+        return normalized_source in {"scn pricing", "scn"}
+
+    def _enforce_scn_priority(self, results: list[NormalizedResult]) -> list[NormalizedResult]:
+        if not results:
+            return []
+
+        has_scn_match = any(self._is_scn_result(item) for item in results)
+        if not has_scn_match:
+            self.logger.info("No SCN match found; suppressing non-SCN results per pricing rule")
+            return []
+
+        return sorted(
+            results,
+            key=lambda item: (
+                1 if self._is_scn_result(item) else 0,
+                item.score,
+                1 if item.price_value is not None else 0,
+            ),
+            reverse=True,
         )
 
     async def collect_live_results(
