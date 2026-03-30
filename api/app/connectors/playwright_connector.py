@@ -9,10 +9,12 @@ from app.connectors.base import BaseConnector
 from app.models.normalized_result import NormalizedResult
 
 try:
+    from playwright.async_api import Error as PlaywrightError
     from playwright.async_api import TimeoutError as PlaywrightTimeoutError
     from playwright.async_api import async_playwright
 except Exception:  # pragma: no cover - exercised in environments without playwright
     async_playwright = None
+    PlaywrightError = Exception
     PlaywrightTimeoutError = TimeoutError
 
 
@@ -47,7 +49,7 @@ class PlaywrightConnector(BaseConnector):
                         return results
                     finally:
                         await browser.close()
-            except (PlaywrightTimeoutError, TimeoutError, OSError):
+            except (PlaywrightError, PlaywrightTimeoutError, TimeoutError, OSError):
                 await asyncio.sleep(0.4)
 
         fallback = self.fallback_results(query)

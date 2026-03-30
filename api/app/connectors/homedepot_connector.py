@@ -6,6 +6,11 @@ from urllib.parse import urljoin
 from app.connectors.playwright_connector import PlaywrightConnector
 from app.models.normalized_result import NormalizedResult
 
+try:
+    from playwright.async_api import Error as PlaywrightError
+except Exception:  # pragma: no cover - exercised in environments without playwright
+    PlaywrightError = Exception
+
 
 class HomeDepotConnector(PlaywrightConnector):
     source = "home_depot"
@@ -47,8 +52,28 @@ class HomeDepotConnector(PlaywrightConnector):
     }
 
     async def open_search_page(self, page, query: str) -> None:
-        target = self.search_url_template.format(query=query.replace(" ", "+"))
-        await page.goto(target, wait_until="domcontentloaded", timeout=self.timeout_ms)
+        query_param = query.replace(" ", "+")
+        targets = [
+            self.search_url_template.format(query=query_param),
+            f"https://homedepot.ca/search?q={query_param}",
+        ]
+
+        # Assumption: Home Depot edge occasionally fails HTTP/2 handshakes in cloud runtimes.
+        # If the first navigation fails with a protocol error, retry the alternate hostname.
+        last_error: Exception | None = None
+        for index, target in enumerate(targets):
+            try:
+                wait_until = "commit" if index else "domcontentloaded"
+                await page.goto(target, wait_until=wait_until, timeout=self.timeout_ms)
+                return
+            except PlaywrightError as exc:
+                last_error = exc
+                if "ERR_HTTP2_PROTOCOL_ERROR" not in str(exc):
+                    raise
+                continue
+
+        if last_error is not None:
+            raise last_error
 
     async def extract_result_cards(self, page):
         last_error: Exception | None = None
