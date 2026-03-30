@@ -135,10 +135,11 @@ class SCNCatalogService:
         self._supabase_attempted = True
         endpoint = f"{settings.supabase_url}/rest/v1/{settings.scn_table}"
         timeout_seconds = 15
+        select_clause = "model,manufacturer_model,description,list_price,distributor_cost,unit,manufacturer,warehouse"
+        page_size = 1000
         params = {
-            "select": "model,manufacturer_model,description,list_price,distributor_cost,unit,manufacturer,warehouse",
+            "select": select_clause,
             "order": "model.asc",
-            "limit": "5000",
         }
         normalized_query = (query or "").strip()
         if normalized_query:
@@ -153,24 +154,41 @@ class SCNCatalogService:
             "Accept-Profile": settings.supabase_schema,
         }
 
-        try:
-            response = requests.get(endpoint, params=params, headers=headers, timeout=timeout_seconds)
-            response.raise_for_status()
-            payload = response.json()
-        except requests.RequestException as exc:
-            self._supabase_fallback_reason = str(exc)
-            return []
+        payload: list[dict[str, object]] = []
+        page_index = 0
+        while True:
+            paged_params = {
+                **params,
+                "limit": str(page_size),
+                "offset": str(page_index * page_size),
+            }
+            try:
+                response = requests.get(endpoint, params=paged_params, headers=headers, timeout=timeout_seconds)
+                response.raise_for_status()
+                page_payload = response.json()
+            except requests.RequestException as exc:
+                self._supabase_fallback_reason = str(exc)
+                return []
 
-        if not isinstance(payload, list):
-            self._supabase_fallback_reason = "Supabase returned an unexpected payload."
-            logger.warning(
-                "Unexpected SCN catalog payload type from Supabase (host=%s schema=%s table=%s payload_type=%s)",
-                urlparse(settings.supabase_url).netloc or "unknown-host",
-                settings.supabase_schema,
-                settings.scn_table,
-                type(payload).__name__,
-            )
-            return []
+            if not isinstance(page_payload, list):
+                self._supabase_fallback_reason = "Supabase returned an unexpected payload."
+                logger.warning(
+                    "Unexpected SCN catalog payload type from Supabase (host=%s schema=%s table=%s payload_type=%s)",
+                    urlparse(settings.supabase_url).netloc or "unknown-host",
+                    settings.supabase_schema,
+                    settings.scn_table,
+                    type(page_payload).__name__,
+                )
+                return []
+
+            if not page_payload:
+                break
+
+            payload.extend(page_payload)
+            if len(page_payload) < page_size or normalized_query:
+                break
+            page_index += 1
+
         if not payload:
             self._supabase_fallback_reason = "Supabase returned no rows."
             logger.warning(
