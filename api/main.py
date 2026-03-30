@@ -1,9 +1,11 @@
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.connectors.playwright_lifecycle import playwright_lifecycle
 from app.routers.search import router as search_router
 
 logging.basicConfig(
@@ -12,7 +14,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger("quotesense.api")
 
-app = FastAPI(title="QuoteSense API")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    yield
+    await playwright_lifecycle.shutdown()
+
+
+app = FastAPI(title="QuoteSense API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
