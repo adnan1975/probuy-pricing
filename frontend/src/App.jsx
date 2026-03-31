@@ -138,7 +138,7 @@ function App() {
 
   function formatSuggestedPrice(item, rowIndex) {
     const relatedOffers = relatedOffersByRow[rowIndex] || [];
-    const pricedValues = relatedOffers
+    const pricedValues = [item, ...relatedOffers]
       .map((offer) => offer.price_value)
       .filter((value) => typeof value === "number");
     const connectorMin = pricedValues.length > 0 ? Math.min(...pricedValues) : null;
