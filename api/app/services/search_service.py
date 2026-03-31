@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from time import perf_counter
 from collections.abc import Iterable
 
+from app.config import settings
 from app.connectors.base import BaseConnector
 from app.connectors.canadiantire_connector import CanadianTireConnector
 from app.connectors.homedepot_connector import HomeDepotConnector
 from app.connectors.kms_connector import KMSConnector
+from app.connectors.playwright_connector import PlaywrightConnector
 from app.connectors.scn_connector import SCNConnector
 from app.connectors.whitecap_connector import WhiteCapConnector
 from app.models.normalized_result import NormalizedResult, SearchResponse
@@ -130,21 +133,58 @@ class SearchService:
         connectors: list[BaseConnector] | None = None,
     ) -> tuple[list[NormalizedResult], dict[str, str], dict[str, str]]:
         connector_list = connectors or self.connectors
-        tasks = [connector.search(query) for connector in connector_list]
-        settled = await asyncio.gather(*tasks, return_exceptions=True)
+        max_concurrency = max(1, settings.connector_max_concurrency)
+        semaphore = asyncio.Semaphore(max_concurrency)
+
+        lightweight_connectors = [connector for connector in connector_list if not isinstance(connector, PlaywrightConnector)]
+        heavy_connectors = [connector for connector in connector_list if isinstance(connector, PlaywrightConnector)]
+
+        async def _run_connector(
+            connector: BaseConnector,
+            *,
+            use_semaphore: bool,
+        ) -> tuple[BaseConnector, list[NormalizedResult] | Exception]:
+            source = connector.source_label
+            started_at = perf_counter()
+            self.logger.info(
+                "Connector search started",
+                extra={"source": source, "query": query, "throttled": use_semaphore},
+            )
+
+            try:
+                if use_semaphore:
+                    async with semaphore:
+                        results = await connector.search(query)
+                else:
+                    results = await connector.search(query)
+
+                elapsed_ms = round((perf_counter() - started_at) * 1000, 2)
+                self.logger.info(
+                    "Connector search succeeded",
+                    extra={"source": source, "query": query, "elapsed_ms": elapsed_ms, "status": "success"},
+                )
+                return connector, results
+            except Exception as exc:
+                elapsed_ms = round((perf_counter() - started_at) * 1000, 2)
+                self.logger.error(
+                    "Connector search failed",
+                    extra={"source": source, "query": query, "elapsed_ms": elapsed_ms, "status": "failed"},
+                    exc_info=(type(exc), exc, exc.__traceback__),
+                )
+                return connector, exc
+
+        tasks: list[asyncio.Task[tuple[BaseConnector, list[NormalizedResult] | Exception]]] = []
+        tasks.extend(asyncio.create_task(_run_connector(connector, use_semaphore=False)) for connector in lightweight_connectors)
+        tasks.extend(asyncio.create_task(_run_connector(connector, use_semaphore=True)) for connector in heavy_connectors)
+        settled = await asyncio.gather(*tasks)
 
         all_results: list[NormalizedResult] = []
         per_source_errors: dict[str, str] = {}
         per_source_warnings: dict[str, str] = {}
 
-        for connector, item in zip(connector_list, settled, strict=True):
+        for connector, item in settled:
             if isinstance(item, Exception):
                 per_source_errors[connector.source_label] = str(item)
-                self.logger.error(
-                    "Connector search failed",
-                    extra={"source": connector.source_label, "query": query},
-                    exc_info=(type(item), item, item.__traceback__),
-                )
                 continue
             all_results.extend(item)
             connector_warning = getattr(connector, "last_warning", None)
