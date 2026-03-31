@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import "./App.css";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-const expectedSources = ["SCN Pricing", "White Cap", "KMS Tools", "Canadian Tire", "Home Depot"];
+const expectedSources = ["SCN Pricing", "White Cap", "KMS Tools", "Canadian Tire", "Home Depot", "Amazon.ca"];
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
 const MIN_QUERY_LENGTH = 4;
 
