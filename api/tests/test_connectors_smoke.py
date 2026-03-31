@@ -1,5 +1,6 @@
 import unittest
 
+from app.connectors.amazonca_connector import AmazonCAConnector
 from app.connectors.canadiantire_connector import CanadianTireConnector
 from app.connectors.homedepot_connector import HomeDepotConnector
 from app.connectors.kms_connector import KMSConnector
@@ -13,6 +14,10 @@ class ConnectorSmokeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_canadian_tire_connector_empty_query(self):
         results = await CanadianTireConnector().search("")
+        self.assertEqual(results, [])
+
+    async def test_amazon_ca_connector_empty_query(self):
+        results = await AmazonCAConnector().search("")
         self.assertEqual(results, [])
 
     async def test_whitecap_connector_fallback(self):
