@@ -25,6 +25,7 @@ class Settings:
     scn_table: str = os.getenv("SUPABASE_SCN_TABLE", "scn_pricing")
     scn_batch_size: int = _to_int(os.getenv("SCN_BATCH_SIZE"), 500)
     connector_prices_table: str = os.getenv("SUPABASE_CONNECTOR_PRICES_TABLE", "connector_prices")
+    connector_max_concurrency: int = max(1, _to_int(os.getenv("CONNECTOR_MAX_CONCURRENCY"), 2))
     app_log_level: str = os.getenv("APP_LOG_LEVEL", "INFO").upper()
 
 
