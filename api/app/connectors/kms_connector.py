@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from urllib.parse import quote_plus, urljoin
 
@@ -12,6 +13,8 @@ from app.connectors.playwright_connector import (
 )
 from app.connectors.playwright_lifecycle import playwright_lifecycle
 from app.models.normalized_result import NormalizedResult
+
+logger = logging.getLogger(__name__)
 
 
 class KMSConnector(PlaywrightConnector):
@@ -81,17 +84,27 @@ class KMSConnector(PlaywrightConnector):
     }
 
     async def search(self, query: str) -> list[NormalizedResult]:
-        print(f"KMSConnector searching for: {query}")
-        print(f"KMSConnector playwright available: {playwright_lifecycle.available}")
-        print(f"KMSConnector search URL template: {self.search_url_template}")
+        logger.debug(
+            "kms_search_started",
+            extra={
+                "source": self.source,
+                "query": query,
+                "playwright_available": playwright_lifecycle.available,
+            },
+        )
 
         if not query.strip() or not playwright_lifecycle.available:
-            print("KMSConnector missing query or Playwright; returning fallback results.")
+            logger.info(
+                "kms_search_using_fallback",
+                extra={
+                    "source": self.source,
+                    "query": query,
+                    "reason": "missing_query_or_playwright_unavailable",
+                },
+            )
             fallback = self.fallback_results(query)
             self.persist_results(query, fallback)
             return fallback
-
-        print("KMSConnector initializing Playwright search...")
 
         for _ in range(self.retries):
             try:
@@ -100,14 +113,16 @@ class KMSConnector(PlaywrightConnector):
                 page = await context.new_page()
                 try:
                     await self.open_search_page(page, query)
-
-                    print(f"KMSConnector opened search page for: {query}")
-                    print(f"KMSConnector page URL after load: {page.url}")
-                    print(f"KMSConnector page content length: {len(await page.content())}")
-                    print(f"KMSConnector looking for result cards with selectors: {self.selectors['cards']}")
+                    logger.debug(
+                        "kms_search_page_opened",
+                        extra={"source": self.source, "query": query, "page_url": page.url},
+                    )
 
                     cards = await self.extract_result_cards(page)
-                    print(f"KMSConnector found {len(cards)} result cards for: {query}")
+                    logger.debug(
+                        "kms_result_cards_extracted",
+                        extra={"source": self.source, "query": query, "card_count": len(cards)},
+                    )
 
                     results: list[NormalizedResult] = []
                     for card in cards[: self.max_results]:
@@ -120,14 +135,20 @@ class KMSConnector(PlaywrightConnector):
                         if pdp_result is not None:
                             results.append(pdp_result)
 
-                    print(f"KMSConnector extracted {len(results)} normalized results for: {query}")
+                    logger.info(
+                        "kms_search_completed",
+                        extra={"source": self.source, "query": query, "result_count": len(results)},
+                    )
                     self.persist_results(query, results)
                     return results
                 finally:
                     await page.close()
                     await context.close()
             except (PlaywrightError, PlaywrightTimeoutError, TimeoutError, OSError) as exc:
-                print(f"KMSConnector retrying after error: {exc}")
+                logger.info(
+                    "kms_search_retrying_after_error",
+                    extra={"source": self.source, "query": query, "error": str(exc)},
+                )
                 await asyncio.sleep(0.4)
 
         fallback = self.fallback_results(query)
@@ -145,14 +166,20 @@ class KMSConnector(PlaywrightConnector):
             locator = page.locator(selector)
             try:
                 count = await locator.count()
-                print(f"KMS selector '{selector}' count={count}")
+                logger.debug(
+                    "kms_selector_count",
+                    extra={"source": self.source, "selector": selector, "count": count},
+                )
 
                 if count:
                     await locator.first.wait_for(state="visible", timeout=6000)
                     return [locator.nth(i) for i in range(count)]
             except Exception as exc:
                 last_error = exc
-                print(f"KMS selector failed '{selector}': {exc}")
+                logger.debug(
+                    "kms_selector_failed",
+                    extra={"source": self.source, "selector": selector, "error": str(exc)},
+                )
                 continue
 
         if last_error is not None:
@@ -209,7 +236,10 @@ class KMSConnector(PlaywrightConnector):
                 why=why,
             )
         except Exception as exc:
-            print(f"KMSConnector normalize_result failed: {exc}")
+            logger.debug(
+                "kms_normalize_result_failed",
+                extra={"source": self.source, "error": str(exc)},
+            )
             return None
 
     async def normalize_product_page(self, page) -> NormalizedResult | None:
@@ -261,7 +291,10 @@ class KMSConnector(PlaywrightConnector):
                 why=why,
             )
         except Exception as exc:
-            print(f"KMSConnector normalize_product_page failed: {exc}")
+            logger.debug(
+                "kms_normalize_product_page_failed",
+                extra={"source": self.source, "error": str(exc)},
+            )
             return None
 
     def fallback_results(self, query: str) -> list[NormalizedResult]:
