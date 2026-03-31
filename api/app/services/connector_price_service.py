@@ -81,8 +81,8 @@ class ConnectorPriceService:
         params = {
             "select": "source,source_type,title,price_text,price,sku,manufacturer_model,available,location,currency,product_url,image_url,confidence,why,date_created",
             "order": "date_created.desc",
-            "limit": str(page_size),
-            "offset": str((page - 1) * page_size),
+            # Pull a larger window, then dedupe + paginate locally so each connector row is the latest snapshot.
+            "limit": "1000",
         }
         if normalized_query:
             escaped = normalized_query.replace("*", "").replace(",", " ")
@@ -93,8 +93,14 @@ class ConnectorPriceService:
         payload = response.json()
         total = self._extract_total(response.headers.get("Content-Range"))
 
+        deduped_payload = self._dedupe_latest_rows(payload)
+        total = len(deduped_payload)
+        start = max(page - 1, 0) * page_size
+        end = start + page_size
+        page_rows = deduped_payload[start:end]
+
         results: list[NormalizedResult] = []
-        for row in payload:
+        for row in page_rows:
             results.append(
                 NormalizedResult(
                     source=str(row.get("source") or "Unknown"),
@@ -115,6 +121,27 @@ class ConnectorPriceService:
             )
 
         return results, total
+
+    @staticmethod
+    def _dedupe_latest_rows(rows: list[dict]) -> list[dict]:
+        """
+        Keep only the latest row for each connector + product tuple.
+        Input rows are expected in date_created DESC order.
+        """
+        seen: set[tuple[str, str, str, str]] = set()
+        deduped: list[dict] = []
+        for row in rows:
+            key = (
+                str(row.get("source") or "").strip().lower(),
+                str(row.get("sku") or "").strip().lower(),
+                str(row.get("manufacturer_model") or "").strip().lower(),
+                str(row.get("title") or "").strip().lower(),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(row)
+        return deduped
 
     @staticmethod
     def _extract_total(content_range: str | None) -> int:
