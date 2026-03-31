@@ -122,13 +122,29 @@ function App() {
         return false;
       });
 
-      acc[idx] = offers;
+      // Supabase can contain historical snapshots. Keep one row (latest) per connector source in details.
+      const latestBySource = new Map();
+      offers.forEach((offer) => {
+        const sourceKey = String(offer.source || "").toLowerCase();
+        if (!latestBySource.has(sourceKey)) {
+          latestBySource.set(sourceKey, offer);
+        }
+      });
+
+      acc[idx] = Array.from(latestBySource.values());
       return acc;
     }, {});
   }, [results, visibleResults]);
 
-  function formatSuggestedPrice(item) {
-    const suggestedPriceValue = typeof item.suggested_price === "number" ? item.suggested_price : item.price_value;
+  function formatSuggestedPrice(item, rowIndex) {
+    const relatedOffers = relatedOffersByRow[rowIndex] || [];
+    const pricedValues = relatedOffers
+      .map((offer) => offer.price_value)
+      .filter((value) => typeof value === "number");
+    const connectorMin = pricedValues.length > 0 ? Math.min(...pricedValues) : null;
+    const suggestedPriceValue = typeof connectorMin === "number"
+      ? connectorMin
+      : (typeof item.suggested_price === "number" ? item.suggested_price : item.price_value);
     if (typeof suggestedPriceValue !== "number") {
       return "N/A";
     }
@@ -264,7 +280,7 @@ function App() {
                         <td>{item.location || item.warehouse_location || item.warehouse || "N/A"}</td>
                         <td>{item.price_text || "Price unavailable"}</td>
                         <td>{item.availability || "Unknown"}</td>
-                        <td className="suggested-price">{formatSuggestedPrice(item)}</td>
+                        <td className="suggested-price">{formatSuggestedPrice(item, idx)}</td>
                         <td>
                           <button className="publish-btn" type="button">
                             Publish Price
