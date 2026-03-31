@@ -80,22 +80,27 @@ class SCNCatalogService:
     def search(self, query: str) -> list[SCNItem]:
         normalized_query = query.strip().lower()
         self.last_load_warning = None
-        items = self._load_from_supabase(query=query)
-        if normalized_query:
-            query_tokens = self._tokenize(normalized_query)
-            if query_tokens:
-                items = [
-                    item
-                    for item in items
-                    if all(
-                        token
-                        in (
-                            f"{item.model} {item.manufacturer_model or ''} "
-                            f"{item.description} {item.manufacturer or ''}"
-                        ).lower()
-                        for token in query_tokens
-                    )
-                ]
+        if not normalized_query:
+            self._items = []
+            self._last_load_source = "supabase"
+            return []
+
+        search_max_rows = max(1, settings.scn_search_max_rows)
+        items = self._load_from_supabase(query=normalized_query, row_cap=search_max_rows)
+        query_tokens = self._tokenize(normalized_query)
+        if query_tokens:
+            items = [
+                item
+                for item in items
+                if all(
+                    token
+                    in (
+                        f"{item.model} {item.manufacturer_model or ''} "
+                        f"{item.description} {item.manufacturer or ''}"
+                    ).lower()
+                    for token in query_tokens
+                )
+            ]
         self._items = items
         self._last_load_source = "supabase"
         if not items:
@@ -125,7 +130,7 @@ class SCNCatalogService:
 
         return values
 
-    def _load_from_supabase(self, query: str | None = None) -> list[SCNItem]:
+    def _load_from_supabase(self, query: str | None = None, row_cap: int | None = None) -> list[SCNItem]:
         self._supabase_attempted = False
         self._supabase_fallback_reason = None
         if not settings.supabase_url or not settings.supabase_service_role_key:
@@ -154,8 +159,13 @@ class SCNCatalogService:
             "Accept-Profile": settings.supabase_schema,
         }
 
-        payload: list[dict[str, object]] = []
+        effective_cap = max(1, row_cap) if row_cap is not None else None
+        if effective_cap is not None:
+            page_size = min(page_size, effective_cap)
+
+        rows: list[SCNItem] = []
         page_index = 0
+        truncation_logged = False
         while True:
             paged_params = {
                 **params,
@@ -184,12 +194,40 @@ class SCNCatalogService:
             if not page_payload:
                 break
 
-            payload.extend(page_payload)
+            for row in page_payload:
+                rows.append(
+                    SCNItem(
+                        model=str(row.get("model") or ""),
+                        manufacturer_model=str(row.get("manufacturer_model")) if row.get("manufacturer_model") else None,
+                        description=str(row.get("description") or ""),
+                        list_price=self._parse_decimal(row.get("list_price")),
+                        distributor_cost=self._parse_decimal(row.get("distributor_cost")),
+                        unit=str(row.get("unit")) if row.get("unit") else None,
+                        manufacturer=str(row.get("manufacturer")) if row.get("manufacturer") else None,
+                        warehouse=(
+                            str(row.get("warehouse"))
+                            if (row.get("warehouse") and str(row.get("warehouse")).strip())
+                            else None
+                        ),
+                    )
+                )
+                if effective_cap is not None and len(rows) >= effective_cap:
+                    truncation_logged = True
+                    break
+
+            if truncation_logged:
+                logger.warning(
+                    "SCN Supabase search results truncated (query=%r row_cap=%s).",
+                    normalized_query,
+                    effective_cap,
+                )
+                break
+
             if len(page_payload) < page_size or normalized_query:
                 break
             page_index += 1
 
-        if not payload:
+        if not rows:
             self._supabase_fallback_reason = "Supabase returned no rows."
             logger.warning(
                 "Supabase returned no SCN rows (host=%s schema=%s table=%s timeout=%ss).",
@@ -199,25 +237,6 @@ class SCNCatalogService:
                 timeout_seconds,
             )
             return []
-
-        rows: list[SCNItem] = []
-        for row in payload:
-            rows.append(
-                SCNItem(
-                    model=str(row.get("model") or ""),
-                    manufacturer_model=str(row.get("manufacturer_model")) if row.get("manufacturer_model") else None,
-                    description=str(row.get("description") or ""),
-                    list_price=self._parse_decimal(row.get("list_price")),
-                    distributor_cost=self._parse_decimal(row.get("distributor_cost")),
-                    unit=str(row.get("unit")) if row.get("unit") else None,
-                    manufacturer=str(row.get("manufacturer")) if row.get("manufacturer") else None,
-                    warehouse=(
-                        str(row.get("warehouse") )
-                        if (row.get("warehouse") and str(row.get("warehouse")).strip())
-                        else None
-                    ),
-                )
-            )
         return rows
 
     def _load_from_csv(self) -> list[SCNItem]:

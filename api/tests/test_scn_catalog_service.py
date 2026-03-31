@@ -49,7 +49,7 @@ class SCNCatalogServiceTests(unittest.TestCase):
             settings.supabase_service_role_key = old_key
 
     @patch("app.services.scn_catalog_service.requests.get")
-    def test_search_with_empty_query_returns_all_rows(self, mock_get: Mock):
+    def test_search_with_empty_query_returns_early(self, mock_get: Mock):
         mock_response = Mock()
         mock_response.raise_for_status.return_value = None
         mock_response.json.return_value = [
@@ -64,7 +64,8 @@ class SCNCatalogServiceTests(unittest.TestCase):
             settings.supabase_service_role_key = "test-key"
             service = SCNCatalogService()
             results = service.search("")
-            self.assertEqual(len(results), 2)
+            self.assertEqual(len(results), 0)
+            mock_get.assert_not_called()
         finally:
             settings.supabase_url = old_url
             settings.supabase_service_role_key = old_key
