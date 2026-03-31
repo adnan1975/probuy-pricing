@@ -7,6 +7,7 @@ from collections.abc import Iterable
 
 from app.config import settings
 from app.connectors.base import BaseConnector
+from app.connectors.amazonca_connector import AmazonCAConnector
 from app.connectors.canadiantire_connector import CanadianTireConnector
 from app.connectors.homedepot_connector import HomeDepotConnector
 from app.connectors.kms_connector import KMSConnector
@@ -27,6 +28,7 @@ class SearchService:
             KMSConnector(),
             CanadianTireConnector(),
             HomeDepotConnector(),
+            AmazonCAConnector(),
         ]
         self.matching_service = MatchingService()
         self.analysis_service = AnalysisService()
