@@ -40,7 +40,7 @@ async def search_by_connector(
         raise HTTPException(status_code=404, detail=f"Unknown connector: {connector_name}")
 
     try:
-        results = await connector.search(query)
+        results = await search_service.search_connector_with_scn_variants(connector, query)
     except Exception as exc:
         logger.error(
             "Connector search failed",

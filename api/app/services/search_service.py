@@ -18,6 +18,7 @@ from app.models.normalized_result import NormalizedResult, SearchResponse
 from app.services.analysis_service import AnalysisService
 from app.services.connector_price_service import ConnectorPriceService
 from app.services.matching_service import MatchingService
+from app.services.scn_catalog_service import SCNCatalogService
 
 
 class SearchService:
@@ -33,6 +34,7 @@ class SearchService:
         self.matching_service = MatchingService()
         self.analysis_service = AnalysisService()
         self.connector_price_service = ConnectorPriceService()
+        self.scn_catalog_service = SCNCatalogService()
         self.logger = logging.getLogger(__name__)
         self._connector_lookup = self._build_connector_lookup(self.connectors)
 
@@ -194,3 +196,73 @@ class SearchService:
                 per_source_warnings[connector.source_label] = connector_warning
 
         return all_results, per_source_errors, per_source_warnings
+
+    def scn_query_variants(self, query: str) -> list[str]:
+        """Build alternative lookup queries from SCN catalog matches.
+
+        When searching an individual connector we start from the original query,
+        then append SCN-enriched terms (model, manufacturer model, description,
+        manufacturer) so retail connectors get multiple attempts for the same item.
+        """
+
+        base_query = query.strip()
+        if not base_query:
+            return []
+
+        variants: list[str] = []
+        seen: set[str] = set()
+
+        def _push(value: str | None) -> None:
+            if not value:
+                return
+            normalized = value.strip()
+            if not normalized:
+                return
+            key = normalized.lower()
+            if key in seen:
+                return
+            seen.add(key)
+            variants.append(normalized)
+
+        _push(base_query)
+
+        try:
+            scn_items = self.scn_catalog_service.search(base_query)
+        except Exception:
+            self.logger.exception("Failed generating SCN query variants", extra={"query": base_query})
+            return variants
+
+        for item in scn_items:
+            _push(item.model)
+            _push(item.manufacturer_model)
+            _push(item.description)
+            _push(item.manufacturer)
+
+        return variants
+
+    async def search_connector_with_scn_variants(self, connector: BaseConnector, query: str) -> list[NormalizedResult]:
+        """Search one connector with original query + SCN-derived alternatives."""
+        if isinstance(connector, SCNConnector):
+            return await connector.search(query)
+
+        queries = self.scn_query_variants(query)
+        if not queries:
+            return []
+
+        merged_results: list[NormalizedResult] = []
+        seen_result_keys: set[tuple[str, str, str]] = set()
+
+        for candidate_query in queries:
+            connector_results = await connector.search(candidate_query)
+            for result in connector_results:
+                dedupe_key = (
+                    (result.product_url or "").strip().lower(),
+                    (result.sku or "").strip().lower(),
+                    (result.title or "").strip().lower(),
+                )
+                if dedupe_key in seen_result_keys:
+                    continue
+                seen_result_keys.add(dedupe_key)
+                merged_results.append(result)
+
+        return merged_results

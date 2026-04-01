@@ -28,6 +28,15 @@ class StubConnector(BaseConnector):
         ]
 
 
+class RecordingStubConnector(StubConnector):
+    def __init__(self) -> None:
+        self.queries: list[str] = []
+
+    async def search(self, query: str) -> list[NormalizedResult]:
+        self.queries.append(query)
+        return await super().search(query)
+
+
 class AppSmokeTests(unittest.IsolatedAsyncioTestCase):
     async def test_search_handler_returns_contract(self):
         response = await search_handler(product="DEWALT DCG418B", page=1, page_size=25)
@@ -65,6 +74,43 @@ class AppSmokeTests(unittest.IsolatedAsyncioTestCase):
         finally:
             search_service.connectors = original_connectors
             search_service._connector_lookup = original_lookup
+
+    async def test_search_by_connector_tries_scn_variant_fields(self):
+        original_connectors = search_service.connectors
+        original_lookup = search_service._connector_lookup
+        original_scn_service = search_service.scn_catalog_service
+        try:
+            stub = RecordingStubConnector()
+            search_service.connectors = [stub]
+            search_service._connector_lookup = search_service._build_connector_lookup(search_service.connectors)
+
+            class _FakeSCNItem:
+                model = "NO436"
+                manufacturer_model = "DCBL722B"
+                description = "MAX* Brushless Handheld Blower (Tool Only)"
+                manufacturer = "DEWALT"
+
+            class _FakeSCNService:
+                def search(self, query: str) -> list[_FakeSCNItem]:
+                    return [_FakeSCNItem()]
+
+            search_service.scn_catalog_service = _FakeSCNService()
+
+            response = await search_by_connector_handler(
+                payload=ConnectorSearchRequest(query="NO436"),
+                connector_name="stub_source",
+            )
+
+            self.assertEqual(response.connector, "stub_source")
+            self.assertEqual(
+                stub.queries,
+                ["NO436", "DCBL722B", "MAX* Brushless Handheld Blower (Tool Only)", "DEWALT"],
+            )
+            self.assertGreaterEqual(len(response.results), 1)
+        finally:
+            search_service.connectors = original_connectors
+            search_service._connector_lookup = original_lookup
+            search_service.scn_catalog_service = original_scn_service
 
     def test_fastapi_routes_are_registered(self):
         route_paths = {route.path for route in app.routes}
