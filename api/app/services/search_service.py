@@ -158,9 +158,9 @@ class SearchService:
             try:
                 if use_semaphore:
                     async with semaphore:
-                        results = await connector.search(query)
+                        results = await self.search_connector_with_scn_variants(connector, query)
                 else:
-                    results = await connector.search(query)
+                    results = await self.search_connector_with_scn_variants(connector, query)
 
                 elapsed_ms = round((perf_counter() - started_at) * 1000, 2)
                 self.logger.info(
@@ -253,8 +253,40 @@ class SearchService:
         seen_result_keys: set[tuple[str, str, str]] = set()
 
         for candidate_query in queries:
+            self.logger.info(
+                "Connector variant search started",
+                extra={
+                    "source": connector.source_label,
+                    "original_query": query,
+                    "variant_query": candidate_query,
+                },
+            )
             connector_results = await connector.search(candidate_query)
-            for result in connector_results:
+            if not connector_results:
+                self.logger.info(
+                    "Connector variant search yielded no results",
+                    extra={
+                        "source": connector.source_label,
+                        "original_query": query,
+                        "variant_query": candidate_query,
+                    },
+                )
+                continue
+
+            priced_results = [result for result in connector_results if result.price_value is not None]
+            if not priced_results:
+                self.logger.info(
+                    "Connector variant results skipped due to missing prices",
+                    extra={
+                        "source": connector.source_label,
+                        "original_query": query,
+                        "variant_query": candidate_query,
+                        "result_count": len(connector_results),
+                    },
+                )
+                continue
+
+            for result in priced_results:
                 dedupe_key = (
                     (result.product_url or "").strip().lower(),
                     (result.sku or "").strip().lower(),

@@ -25,10 +25,9 @@ class ConnectorSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreaterEqual(len(results), 1)
         self.assertEqual(results[0].source, "White Cap")
 
-    async def test_kms_connector_fallback(self):
+    async def test_kms_connector_no_mock_fallback(self):
         results = await KMSConnector().search("sf201af")
-        self.assertGreaterEqual(len(results), 1)
-        self.assertEqual(results[0].source, "KMS Tools")
+        self.assertEqual(results, [])
 
 
 class HomeDepotHelperTests(unittest.TestCase):

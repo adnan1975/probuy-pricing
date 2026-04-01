@@ -5,7 +5,6 @@ import logging
 import re
 from urllib.parse import quote_plus, urljoin
 
-from app.connectors.mock_catalog import build_mock_result
 from app.connectors.playwright_connector import (
     PlaywrightConnector,
     PlaywrightError,
@@ -84,27 +83,33 @@ class KMSConnector(PlaywrightConnector):
     }
 
     async def search(self, query: str) -> list[NormalizedResult]:
+        normalized_query = query.strip()
         logger.debug(
             "kms_search_started",
             extra={
                 "source": self.source,
-                "query": query,
+                "query": normalized_query,
                 "playwright_available": playwright_lifecycle.available,
             },
         )
 
-        if not query.strip() or not playwright_lifecycle.available:
+        if not normalized_query:
             logger.info(
-                "kms_search_using_fallback",
+                "kms_search_skipped_empty_query",
+                extra={"source": self.source, "query": query},
+            )
+            return []
+
+        if not playwright_lifecycle.available:
+            logger.info(
+                "kms_search_skipped_playwright_unavailable",
                 extra={
                     "source": self.source,
-                    "query": query,
-                    "reason": "missing_query_or_playwright_unavailable",
+                    "query": normalized_query,
+                    "reason": "playwright_unavailable",
                 },
             )
-            fallback = self.fallback_results(query)
-            self.persist_results(query, fallback)
-            return fallback
+            return []
 
         for _ in range(self.retries):
             try:
@@ -112,16 +117,16 @@ class KMSConnector(PlaywrightConnector):
                 context = await browser.new_context()
                 page = await context.new_page()
                 try:
-                    await self.open_search_page(page, query)
+                    await self.open_search_page(page, normalized_query)
                     logger.debug(
                         "kms_search_page_opened",
-                        extra={"source": self.source, "query": query, "page_url": page.url},
+                        extra={"source": self.source, "query": normalized_query, "page_url": page.url},
                     )
 
                     cards = await self.extract_result_cards(page)
                     logger.debug(
                         "kms_result_cards_extracted",
-                        extra={"source": self.source, "query": query, "card_count": len(cards)},
+                        extra={"source": self.source, "query": normalized_query, "card_count": len(cards)},
                     )
 
                     results: list[NormalizedResult] = []
@@ -129,31 +134,69 @@ class KMSConnector(PlaywrightConnector):
                         normalized = await self.normalize_result(page, card)
                         if normalized:
                             results.append(normalized)
+                            logger.debug(
+                                "kms_result_candidate_parsed",
+                                extra={
+                                    "source": self.source,
+                                    "query": normalized_query,
+                                    "title": normalized.title,
+                                    "sku": normalized.sku,
+                                    "price_value": normalized.price_value,
+                                },
+                            )
 
                     if not results:
                         pdp_result = await self.normalize_product_page(page)
                         if pdp_result is not None:
                             results.append(pdp_result)
+                            logger.debug(
+                                "kms_result_candidate_from_pdp",
+                                extra={
+                                    "source": self.source,
+                                    "query": normalized_query,
+                                    "title": pdp_result.title,
+                                    "sku": pdp_result.sku,
+                                    "price_value": pdp_result.price_value,
+                                },
+                            )
+
+                    priced_results = [result for result in results if result.price_value is not None]
+                    if not priced_results:
+                        logger.info(
+                            "kms_search_no_priced_results_for_query",
+                            extra={
+                                "source": self.source,
+                                "query": normalized_query,
+                                "result_count": len(results),
+                            },
+                        )
+                        return []
 
                     logger.info(
                         "kms_search_completed",
-                        extra={"source": self.source, "query": query, "result_count": len(results)},
+                        extra={
+                            "source": self.source,
+                            "query": normalized_query,
+                            "result_count": len(priced_results),
+                        },
                     )
-                    self.persist_results(query, results)
-                    return results
+                    self.persist_results(normalized_query, priced_results)
+                    return priced_results
                 finally:
                     await page.close()
                     await context.close()
             except (PlaywrightError, PlaywrightTimeoutError, TimeoutError, OSError) as exc:
                 logger.info(
                     "kms_search_retrying_after_error",
-                    extra={"source": self.source, "query": query, "error": str(exc)},
+                    extra={"source": self.source, "query": normalized_query, "error": str(exc)},
                 )
                 await asyncio.sleep(0.4)
 
-        fallback = self.fallback_results(query)
-        self.persist_results(query, fallback)
-        return fallback
+        logger.info(
+            "kms_search_exhausted_retries_no_results",
+            extra={"source": self.source, "query": normalized_query},
+        )
+        return []
 
     async def open_search_page(self, page, query: str) -> None:
         target = self.search_url_template.format(query=quote_plus(query))
@@ -298,7 +341,7 @@ class KMSConnector(PlaywrightConnector):
             return None
 
     def fallback_results(self, query: str) -> list[NormalizedResult]:
-        return build_mock_result(query, self.source, self.source_label)
+        return []
 
     @staticmethod
     def _selector_union(name: str) -> str:
