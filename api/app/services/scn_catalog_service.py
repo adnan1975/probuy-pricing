@@ -89,24 +89,32 @@ class SCNCatalogService:
         items = self._load_from_supabase(query=normalized_query, row_cap=search_max_rows)
         query_tokens = self._tokenize(normalized_query)
         if query_tokens:
-            items = [
-                item
-                for item in items
-                if all(
-                    token
-                    in (
-                        f"{item.model} {item.manufacturer_model or ''} "
-                        f"{item.description} {item.manufacturer or ''}"
-                    ).lower()
-                    for token in query_tokens
-                )
-            ]
+            items = [item for item in items if self._matches_all_tokens(item, query_tokens)]
         self._items = items
         self._last_load_source = "supabase"
         if not items:
             fallback_reason = self._supabase_fallback_reason or "Supabase returned no rows."
             self.last_load_warning = f"SCN catalog unavailable from Supabase ({fallback_reason})."
         return items
+
+    @staticmethod
+    def _searchable_blob(item: SCNItem) -> str:
+        return " ".join(
+            [
+                item.model,
+                item.manufacturer_model or "",
+                item.description,
+                item.manufacturer or "",
+                item.unit or "",
+                item.warehouse or "",
+                str(item.list_price) if item.list_price is not None else "",
+                str(item.distributor_cost) if item.distributor_cost is not None else "",
+            ]
+        ).lower()
+
+    def _matches_all_tokens(self, item: SCNItem, query_tokens: list[str]) -> bool:
+        blob = self._searchable_blob(item)
+        return all(token in blob for token in query_tokens)
 
     def list_distinct_queries(self, limit: int = 100) -> list[str]:
         items = self.load_items()

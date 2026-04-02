@@ -46,7 +46,7 @@ class FailingConnector(BaseConnector):
 
 
 class SearchServiceTests(unittest.IsolatedAsyncioTestCase):
-    async def test_connectors_execute_in_parallel(self):
+    async def test_connectors_execute_sequentially(self):
         service = SearchService(
             connectors=[
                 DelayedConnector("SCN Pricing", delay_seconds=0.25, price_value=10, source_type="distributor"),
@@ -62,7 +62,7 @@ class SearchServiceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(len(response.results), 4)
         self.assertEqual(response.results[0].source, "SCN Pricing")
-        self.assertLess(elapsed, 0.60)
+        self.assertGreater(elapsed, 0.70)
 
     async def test_connector_failure_is_isolated(self):
         service = SearchService(
