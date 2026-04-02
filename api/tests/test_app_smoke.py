@@ -102,10 +102,7 @@ class AppSmokeTests(unittest.IsolatedAsyncioTestCase):
             )
 
             self.assertEqual(response.connector, "stub_source")
-            self.assertEqual(
-                stub.queries,
-                ["NO436", "DCBL722B", "MAX* Brushless Handheld Blower (Tool Only)", "DEWALT"],
-            )
+            self.assertEqual(stub.queries, ["NO436", "DCBL722B", "MAX* Brushless Handheld Blower (Tool Only)"])
             self.assertGreaterEqual(len(response.results), 1)
         finally:
             search_service.connectors = original_connectors
