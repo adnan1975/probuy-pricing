@@ -12,7 +12,7 @@ class WhiteCapConnector(PlaywrightConnector):
     source = "white_cap"
     source_label = "White Cap"
     source_type = "distributor"
-    search_url_template = "https://www.whitecap.com/search?q={query}"
+    search_url_template = "https://www.whitecap.com/search?query={query}"
     selectors = {
         # Keep selectors centralized so DOM updates stay isolated to this connector.
         # NOTE: White Cap frequently ships SPA/layout updates; fallbacks below are intentional.
@@ -52,33 +52,71 @@ class WhiteCapConnector(PlaywrightConnector):
 
     async def open_search_page(self, page, query: str) -> None:
         target = self.search_url_template.format(query=quote_plus(query))
+        self._logger.info(
+            "White Cap: opening search page",
+            extra={"source": self.source_label, "query": query, "url": target},
+        )
         await page.goto(target, wait_until="domcontentloaded", timeout=self.timeout_ms)
+        self._logger.info(
+            "White Cap: search page loaded",
+            extra={"source": self.source_label, "query": query, "url": target},
+        )
 
     async def extract_result_cards(self, page):
         last_error: Exception | None = None
         for selector in self.selectors["cards"]:
             locator = page.locator(selector)
             try:
+                self._logger.info(
+                    "White Cap: trying card selector",
+                    extra={"source": self.source_label, "selector": selector},
+                )
                 await locator.first.wait_for(state="visible", timeout=7000)
                 count = await locator.count()
+                self._logger.info(
+                    "White Cap: selector matched cards",
+                    extra={"source": self.source_label, "selector": selector, "count": count},
+                )
                 if count:
                     return [locator.nth(i) for i in range(count)]
             except Exception as exc:  # pragma: no cover - depends on live DOM
+                self._logger.warning(
+                    "White Cap: selector failed while extracting cards",
+                    extra={"source": self.source_label, "selector": selector},
+                    exc_info=True,
+                )
                 last_error = exc
                 continue
 
         if last_error is not None:
+            self._logger.error(
+                "White Cap: all card selectors failed",
+                extra={"source": self.source_label},
+                exc_info=True,
+            )
             raise last_error
+        self._logger.warning(
+            "White Cap: no cards found with available selectors",
+            extra={"source": self.source_label},
+        )
         return []
 
     async def normalize_result(self, page, card) -> NormalizedResult | None:
         try:
             title_node = card.locator(self._selector_union("title")).first
             if not await title_node.count():
+                self._logger.info(
+                    "White Cap: skipping card missing title node",
+                    extra={"source": self.source_label},
+                )
                 return None
 
             title = self._clean(await title_node.inner_text())
             if not title:
+                self._logger.info(
+                    "White Cap: skipping card with empty title",
+                    extra={"source": self.source_label},
+                )
                 return None
 
             href = await title_node.get_attribute("href")
@@ -101,6 +139,17 @@ class WhiteCapConnector(PlaywrightConnector):
             image_src = await image_node.get_attribute("src") if await image_node.count() else None
             image_url = self._absolute_url(image_src)
 
+            self._logger.info(
+                "White Cap: normalized card",
+                extra={
+                    "source": self.source_label,
+                    "title": title,
+                    "sku": sku,
+                    "price_text": price_text,
+                    "has_price": price_value is not None,
+                    "product_url": product_url,
+                },
+            )
             return NormalizedResult(
                 source=self.source_label,
                 source_type=self.source_type,
@@ -121,13 +170,23 @@ class WhiteCapConnector(PlaywrightConnector):
                 ),
             )
         except Exception:
+            self._logger.warning(
+                "White Cap: failed to normalize card",
+                extra={"source": self.source_label},
+                exc_info=True,
+            )
             # Never let a malformed White Cap card break the connector.
             return None
 
     def fallback_results(self, query: str) -> list[NormalizedResult]:
         # Best-effort fallback: return curated mock benchmark rows for known demo queries.
         # TODO: Replace with production-safe fallback once White Cap anti-bot/geo behavior is profiled.
-        return build_mock_result(query, self.source, self.source_label)
+        fallback = build_mock_result(query, self.source, self.source_label)
+        self._logger.warning(
+            "White Cap: using fallback results",
+            extra={"source": self.source_label, "query": query, "count": len(fallback)},
+        )
+        return fallback
 
     @staticmethod
     def _selector_union(name: str) -> str:
