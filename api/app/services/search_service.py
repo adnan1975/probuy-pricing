@@ -20,8 +20,8 @@ class SearchService:
     def __init__(self, connectors: list[BaseConnector] | None = None) -> None:
         self.connectors = connectors or [
             SCNConnector(),
-            WhiteCapConnector(),
             KMSConnector(),
+            WhiteCapConnector(),
             CanadianTireConnector(),
             HomeDepotConnector(),
             AmazonCAConnector(),
