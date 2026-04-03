@@ -2,10 +2,10 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import "./App.css";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-const expectedSources = ["SCN Pricing", "White Cap", "KMS Tools", "Canadian Tire", "Home Depot", "Amazon.ca"];
+const expectedSources = ["SCN Pricing", "KMS Tools", "White Cap", "Canadian Tire", "Home Depot", "Amazon.ca"];
 const detailConnectorConfigs = [
-  { source: "White Cap", endpoint: "white_cap" },
   { source: "KMS Tools", endpoint: "kms_tools" },
+  { source: "White Cap", endpoint: "white_cap" },
   { source: "Canadian Tire", endpoint: "canadian_tire" },
   { source: "Home Depot", endpoint: "home_depot" },
   { source: "Amazon.ca", endpoint: "amazon_ca" }
@@ -423,6 +423,16 @@ function App() {
                                     <div className="table-sub">
                                       {offer?.availability || (error ? `Error: ${error}` : "Waiting for connector")}
                                     </div>
+                                    {offer?.product_url && (
+                                      <a
+                                        className="details-link"
+                                        href={offer.product_url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                      >
+                                        Open details ↗
+                                      </a>
+                                    )}
                                   </div>
                                 );
                               })}
