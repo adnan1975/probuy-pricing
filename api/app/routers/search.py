@@ -27,6 +27,23 @@ async def search(
     return await search_service.search(product, page=page, page_size=page_size)
 
 
+@router.get("/search/step1", response_model=SearchResponse)
+async def search_step1(
+    product: str = Query(default=""),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=25, ge=1, le=100),
+) -> SearchResponse:
+    logger.info("Received /search/step1 request", extra={"product": product, "page": page, "page_size": page_size})
+    response, _ = await search_service.search_step1(product, page=page, page_size=page_size)
+    return response
+
+
+@router.get("/search/step2", response_model=SearchResponse)
+async def search_step2(product: str = Query(default="")) -> SearchResponse:
+    logger.info("Received /search/step2 request", extra={"product": product})
+    return await search_service.search_step2(product)
+
+
 @router.post("/search/{connector_name}", response_model=ConnectorSearchResponse)
 async def search_by_connector(
     payload: ConnectorSearchRequest,

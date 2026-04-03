@@ -56,34 +56,20 @@ class SearchService:
     async def search(self, query: str, page: int = 1, page_size: int = 25) -> SearchResponse:
         self.logger.info("Running two-step search", extra={"query": query})
 
-        per_source_errors: dict[str, str] = {}
-        per_source_warnings: dict[str, str] = {}
+        step1_response, scn_items = await self.search_step1(query, page=page, page_size=page_size)
+        step2_response = await self.search_step2(query, scn_items=scn_items)
 
-        step1_results: list[NormalizedResult] = []
-        scn_items: list[SCNItem] = []
+        per_source_errors = {
+            **step1_response.per_source_errors,
+            **step2_response.per_source_errors,
+        }
+        per_source_warnings = {
+            **step1_response.per_source_warnings,
+            **step2_response.per_source_warnings,
+        }
 
-        scn_connector = next((connector for connector in self.connectors if isinstance(connector, SCNConnector)), None)
-        if scn_connector is not None:
-            try:
-                step1_results = await scn_connector.search(query)
-                scn_items = self.scn_catalog_service.search(query)
-                if scn_connector.last_warning:
-                    per_source_warnings[scn_connector.source_label] = scn_connector.last_warning
-            except Exception as exc:
-                per_source_errors[scn_connector.source_label] = str(exc)
-                self.logger.error("SCN step failed", extra={"query": query}, exc_info=True)
-
-        non_scn_connectors = [connector for connector in self.connectors if not isinstance(connector, SCNConnector)]
-        step2_results, step2_errors, step2_warnings = await self.collect_live_results(
-            query,
-            scn_items=scn_items,
-            connectors=non_scn_connectors,
-        )
-        per_source_errors.update(step2_errors)
-        per_source_warnings.update(step2_warnings)
-
-        all_results = [*step1_results, *step2_results]
-        ranked_results = self.matching_service.apply(query, all_results)
+        combined_results = [*step1_response.results, *step2_response.results]
+        ranked_results = self.matching_service.apply(query, combined_results)
         ranked_results = self._enforce_scn_priority(ranked_results)
         analysis = self.analysis_service.build(
             ranked_results,
@@ -104,6 +90,82 @@ class SearchService:
             page_size=page_size,
             total_pages=total_pages,
             total_results=total_results,
+            per_source_errors=per_source_errors,
+            per_source_warnings=per_source_warnings,
+        )
+
+    async def search_step1(
+        self,
+        query: str,
+        page: int = 1,
+        page_size: int = 25,
+    ) -> tuple[SearchResponse, list[SCNItem]]:
+        """Step 1: search only SCN pricing."""
+        per_source_errors: dict[str, str] = {}
+        per_source_warnings: dict[str, str] = {}
+
+        step1_results: list[NormalizedResult] = []
+        scn_items: list[SCNItem] = []
+
+        scn_connector = next((connector for connector in self.connectors if isinstance(connector, SCNConnector)), None)
+        if scn_connector is not None:
+            try:
+                step1_results = await scn_connector.search(query)
+                scn_items = self.scn_catalog_service.search(query)
+                if scn_connector.last_warning:
+                    per_source_warnings[scn_connector.source_label] = scn_connector.last_warning
+            except Exception as exc:
+                per_source_errors[scn_connector.source_label] = str(exc)
+                self.logger.error("SCN step failed", extra={"query": query}, exc_info=True)
+
+        ranked_results = self.matching_service.apply(query, step1_results)
+        ranked_results = self._enforce_scn_priority(ranked_results)
+        analysis = self.analysis_service.build(
+            ranked_results,
+            per_source_errors=per_source_errors,
+            per_source_warnings=per_source_warnings,
+        )
+
+        total_results = len(ranked_results)
+        total_pages = (total_results + page_size - 1) // page_size if total_results else 0
+        start = max(page - 1, 0) * page_size
+        end = start + page_size
+
+        response = SearchResponse(
+            query=query,
+            results=ranked_results[start:end],
+            analysis=analysis,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+            total_results=total_results,
+            per_source_errors=per_source_errors,
+            per_source_warnings=per_source_warnings,
+        )
+        return response, scn_items
+
+    async def search_step2(self, query: str, scn_items: list[SCNItem] | None = None) -> SearchResponse:
+        """Step 2: search non-SCN connectors using SCN-derived variants."""
+        non_scn_connectors = [connector for connector in self.connectors if not isinstance(connector, SCNConnector)]
+        step2_results, per_source_errors, per_source_warnings = await self.collect_live_results(
+            query,
+            scn_items=scn_items,
+            connectors=non_scn_connectors,
+        )
+        ranked_results = self.matching_service.apply(query, step2_results)
+        analysis = self.analysis_service.build(
+            ranked_results,
+            per_source_errors=per_source_errors,
+            per_source_warnings=per_source_warnings,
+        )
+        return SearchResponse(
+            query=query,
+            results=ranked_results,
+            analysis=analysis,
+            page=1,
+            page_size=len(ranked_results),
+            total_pages=1 if ranked_results else 0,
+            total_results=len(ranked_results),
             per_source_errors=per_source_errors,
             per_source_warnings=per_source_warnings,
         )

@@ -410,6 +410,12 @@ body {
   cursor: not-allowed;
 }
 
+.details-loader {
+  margin-left: 8px;
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
 .details-row td {
   background: #f8fafc;
 }
