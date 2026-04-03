@@ -12,6 +12,7 @@ function App() {
   const [analysis, setAnalysis] = useState(null);
   const [perSourceErrors, setPerSourceErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [step2Loading, setStep2Loading] = useState(false);
   const [apiError, setApiError] = useState("");
 
   const [page, setPage] = useState(1);
@@ -29,6 +30,7 @@ function App() {
     async function loadResults() {
       if (!canSearch) {
         setLoading(false);
+        setStep2Loading(false);
         setApiError("");
         setResults([]);
         setAnalysis(null);
@@ -41,23 +43,51 @@ function App() {
       setLoading(true);
       setApiError("");
       try {
-        const params = new URLSearchParams({
+        const step1Params = new URLSearchParams({
           product: trimmedQuery,
           page: String(page),
           page_size: String(pageSize)
         });
-        const res = await fetch(`${API_URL}/search?${params.toString()}`, {
+        const step1Res = await fetch(`${API_URL}/search/step1?${step1Params.toString()}`, {
           signal: controller.signal
         });
-        if (!res.ok) {
-          throw new Error(`Backend returned ${res.status}`);
+        if (!step1Res.ok) {
+          throw new Error(`Backend returned ${step1Res.status} from step1`);
         }
-        const data = await res.json();
-        setResults(Array.isArray(data.results) ? data.results : []);
-        setAnalysis(data.analysis || null);
-        setPerSourceErrors(data.per_source_errors || {});
-        setTotalPages(data.total_pages || 0);
-        setTotalResults(data.total_results || 0);
+        const step1Data = await step1Res.json();
+        const scnResults = Array.isArray(step1Data.results) ? step1Data.results : [];
+        setResults(scnResults);
+        setAnalysis(step1Data.analysis || null);
+        setPerSourceErrors(step1Data.per_source_errors || {});
+        setTotalPages(step1Data.total_pages || 0);
+        setTotalResults(step1Data.total_results || 0);
+
+        if (scnResults.length === 0) {
+          setStep2Loading(false);
+          return;
+        }
+
+        setStep2Loading(true);
+        const step2Params = new URLSearchParams({ product: trimmedQuery });
+        const step2Res = await fetch(`${API_URL}/search/step2?${step2Params.toString()}`, {
+          signal: controller.signal
+        });
+        if (!step2Res.ok) {
+          throw new Error(`Backend returned ${step2Res.status} from step2`);
+        }
+        const step2Data = await step2Res.json();
+        const step2Results = Array.isArray(step2Data.results) ? step2Data.results : [];
+        setResults([...scnResults, ...step2Results]);
+        setPerSourceErrors({
+          ...(step1Data.per_source_errors || {}),
+          ...(step2Data.per_source_errors || {})
+        });
+        setAnalysis({
+          ...(step1Data.analysis || {}),
+          total_results: scnResults.length + step2Results.length,
+          priced_results: [...scnResults, ...step2Results].filter((item) => typeof item.price_value === "number").length
+        });
+        setTotalResults(scnResults.length + step2Results.length);
       } catch (err) {
         if (err.name !== "AbortError") {
           setApiError(err.message || "Could not load results");
@@ -68,6 +98,7 @@ function App() {
           setTotalResults(0);
         }
       } finally {
+        setStep2Loading(false);
         setLoading(false);
       }
     }
@@ -211,7 +242,8 @@ function App() {
         <div className="panel">
           <h2>Items found</h2>
           {apiError && <div className="error-box"><strong>API error:</strong> {apiError}</div>}
-          {loading && <div className="info-box">Loading connector results from Supabase...</div>}
+          {loading && <div className="info-box">Loading SCN pricing...</div>}
+          {!loading && step2Loading && <div className="info-box">SCN pricing loaded. Fetching retailer details...</div>}
           {!loading && !apiError && canSearch && visibleResults.length === 0 && <div className="info-box">No SCN matches were found for this query.</div>}
           {!loading && !apiError && canSearch && visibleResults.length > 0 && (analysis?.priced_results ?? 0) === 0 && (
             <div className="info-box">No price could be found yet. Items are shown with defaults so you can still compare sources.</div>
@@ -285,14 +317,18 @@ function App() {
                           <button className="publish-btn" type="button">
                             Publish Price
                           </button>
-                          <button
-                            className="details-btn"
-                            type="button"
-                            onClick={() => toggleDetails(idx)}
-                            disabled={relatedOffers.length === 0}
-                          >
-                            {isExpanded ? "Hide Details" : "Show Details"}
-                          </button>
+                          {step2Loading ? (
+                            <span className="details-loader" aria-live="polite">Loading details...</span>
+                          ) : (
+                            <button
+                              className="details-btn"
+                              type="button"
+                              onClick={() => toggleDetails(idx)}
+                              disabled={relatedOffers.length === 0}
+                            >
+                              {isExpanded ? "Hide Details" : "Show Details"}
+                            </button>
+                          )}
                         </td>
                       </tr>
                       {isExpanded && relatedOffers.length > 0 && (
