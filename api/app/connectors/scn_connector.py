@@ -7,7 +7,7 @@ from app.services.scn_catalog_service import SCNCatalogService
 
 class SCNConnector(BaseConnector):
     source = "scn"
-    source_label = "SCN Pricing"
+    source_label = "SCN International"
     source_type = "distributor"
 
     def __init__(self, catalog_service: SCNCatalogService | None = None) -> None:
