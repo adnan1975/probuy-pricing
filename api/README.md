@@ -1,25 +1,19 @@
 # QuoteSense Backend
 
-FastAPI backend for connector-based price discovery.
+FastAPI backend for SCN-based price discovery.
 
 ## Structure
 
-- `app/connectors/`: retailer connectors (live scraping + guarded fallback)
+- `app/connectors/`: connector implementations
 - `app/services/`: aggregation, analysis, and SCN catalog logic
 - `app/models/`: normalized API response models
 - `app/routers/`: API route definitions
 - `db/supabase_pricing_schema.sql`: Supabase schema + table for SCN pricing
 - `../pipeline/ingest_scn_to_supabase.py`: separate SCN batch ingestion job
 
-## Connectors
+## Connector
 
-Implemented direct connectors:
-
-- `app/connectors/scn_connector.py` (Supabase-backed SCN catalog, CSV fallback)
-- `app/connectors/whitecap_connector.py` (guarded fallback)
-- `app/connectors/kms_connector.py` (guarded fallback)
-- `app/connectors/canadiantire_connector.py` (Playwright + fallback)
-- `app/connectors/homedepot_connector.py` (Playwright + fallback)
+- `app/connectors/scn_connector.py` (Supabase-backed SCN pricing connector)
 
 ## Endpoints
 
@@ -27,9 +21,9 @@ Implemented direct connectors:
 
 Returns:
 
-- `results`: normalized list of source results
+- `results`: normalized list of SCN source results
 - `analysis`: lowest/highest/average/total_results/priced_results summary
-- `per_source_errors`: connector errors keyed by source label (if any)
+- `per_source_errors`: source errors keyed by source label (if any)
 
 ### `GET /catalog/items?limit=250`
 
@@ -61,8 +55,3 @@ If `--csv` is omitted, the job uses `SCN_PRICING_CSV` env var and then falls bac
 cd api
 uvicorn main:app --reload
 ```
-
-## Notes
-
-- Supabase is preferred for SCN reads.
-- If Supabase credentials are not set or unavailable, SCN data automatically falls back to the CSV loader.

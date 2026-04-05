@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.connectors.playwright_lifecycle import playwright_lifecycle
+
 from app.routers.search import router as search_router
 from app.utils.memory import get_rss_mb
 
@@ -21,7 +21,6 @@ RSS_WARNING_THRESHOLD_MB = 400.0
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     yield
-    await playwright_lifecycle.shutdown()
 
 
 app = FastAPI(title="QuoteSense API", lifespan=lifespan)

@@ -31,8 +31,8 @@ Implement connectors for:
 - Home Depot
 
 ## Scraping Requirements
-- Use Playwright Python for retailer scraping
-- Prefer Playwright Locator APIs
+- Use Scrapy Python for retailer scraping
+- Prefer Scrapy Locator APIs
 - Prefer user-facing selectors, visible text, titles, labels, stable data attributes
 - Avoid long brittle CSS/XPath chains
 - Avoid arbitrary sleeps; prefer locator-based waits
@@ -108,7 +108,7 @@ app/
     text_utils.py
 
 ## Implementation Strategy
-- Start with working live Playwright implementations for Home Depot and Canadian Tire
+- Start with working live Scrapy implementations for Home Depot and Canadian Tire
 - Implement White Cap and KMS Tools with the best reliable approach available
 - If a live implementation is too brittle, return guarded partial support with clear TODOs
 - Add source labels suitable for frontend display:
