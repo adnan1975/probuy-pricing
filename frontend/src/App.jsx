@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import "./App.css";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-const expectedSources = ["SCN Pricing", "KMS Tools", "White Cap", "Canadian Tire", "Home Depot", "Amazon.ca"];
+const expectedSources = ["SCN International", "KMS Tools", "White Cap", "Canadian Tire", "Amazon.ca", "Home Depot"];
 const detailConnectorConfigs = [
   { source: "KMS Tools", endpoint: "kms_tools" },
   { source: "White Cap", endpoint: "white_cap" },
@@ -97,7 +97,7 @@ function App() {
   }, [results]);
 
   const scnPrimaryResults = useMemo(
-    () => results.filter((item) => item.source === "SCN Pricing"),
+    () => results.filter((item) => item.source === "SCN International" || item.source === "SCN Pricing"),
     [results]
   );
 
@@ -281,8 +281,8 @@ function App() {
         <div className="topbar">
           <div>
             <div className="tag">QuoteSense Pricing Console</div>
-            <h1>SCN Primary Price Discovery</h1>
-            <p>Showing SCN-matched catalog results first. If no SCN match is found, no results are displayed.</p>
+            <h1>Primary + Secondary Connector Price Discovery</h1>
+            <p>Primary connector data (SCN International from Supabase) is shown first. Open details to run secondary connectors sequentially.</p>
           </div>
 
           <div className="help-card">
@@ -319,7 +319,7 @@ function App() {
         <div className="panel">
           <h2>Items found</h2>
           {apiError && <div className="error-box"><strong>API error:</strong> {apiError}</div>}
-          {loading && <div className="info-box">Loading SCN pricing...</div>}
+          {loading && <div className="info-box inline-loader"><span className="spinner" />Loading primary connector pricing...</div>}
           {!loading && !apiError && canSearch && visibleResults.length === 0 && <div className="info-box">No SCN matches were found for this query.</div>}
           {!loading && !apiError && canSearch && visibleResults.length > 0 && (analysis?.priced_results ?? 0) === 0 && (
             <div className="info-box">No price could be found yet. Items are shown with defaults so you can still compare sources.</div>
@@ -399,7 +399,7 @@ function App() {
                             type="button"
                             onClick={() => toggleDetails(idx)}
                           >
-                            {isExpanded ? "Hide Details" : "Show Details"}
+                            {isExpanded ? "Hide Details" : "Details"}
                           </button>
                         </td>
                       </tr>
@@ -416,7 +416,7 @@ function App() {
                                   <div className="details-card" key={connector.source}>
                                     <div className="table-strong">{connector.source}</div>
                                     {isLoading ? (
-                                      <div className="details-loader">Loading...</div>
+                                      <div className="details-loader"><span className="spinner" /> Loading...</div>
                                     ) : (
                                       <div>{offer?.price_text || "Price unavailable"}</div>
                                     )}

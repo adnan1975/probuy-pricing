@@ -181,7 +181,7 @@ class SCNConnectorTests(unittest.IsolatedAsyncioTestCase):
             rows = await connector.search("item")
 
             self.assertEqual(len(rows), 1)
-            self.assertEqual(rows[0].source, "SCN Pricing")
+            self.assertEqual(rows[0].source, "SCN International")
             self.assertIsNone(rows[0].price_value)
             self.assertEqual(rows[0].price_text, "Price unavailable from SCN list")
             self.assertEqual(rows[0].location, "Warehouse 7")

@@ -42,7 +42,7 @@ class SearchServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_scn_only_connector_execute(self):
         service = SearchService(
             connectors=[
-                DelayedConnector("SCN Pricing", delay_seconds=0.15, price_value=10, source_type="distributor"),
+                DelayedConnector("SCN International", delay_seconds=0.15, price_value=10, source_type="distributor"),
             ]
         )
 
@@ -51,13 +51,13 @@ class SearchServiceTests(unittest.IsolatedAsyncioTestCase):
         elapsed = time.perf_counter() - started
 
         self.assertEqual(len(response.results), 1)
-        self.assertEqual(response.results[0].source, "SCN Pricing")
+        self.assertEqual(response.results[0].source, "SCN International")
         self.assertGreater(elapsed, 0.10)
 
     async def test_response_shape_analysis_and_normalized_schema(self):
         service = SearchService(
             connectors=[
-                DelayedConnector("SCN Pricing", delay_seconds=0.01, price_value=12.0, source_type="distributor"),
+                DelayedConnector("SCN International", delay_seconds=0.01, price_value=12.0, source_type="distributor"),
             ]
         )
 
@@ -94,11 +94,13 @@ class SearchServiceTests(unittest.IsolatedAsyncioTestCase):
         for result in response.results:
             self.assertEqual(set(result.model_dump().keys()), expected_fields)
 
-    async def test_search_step2_returns_empty_results(self):
-        service = SearchService(connectors=[SCNConnector()])
+    async def test_search_step2_returns_secondary_results(self):
+        secondary = DelayedConnector("KMS Tools", delay_seconds=0.01, price_value=19.5, source_type="retail")
+        service = SearchService(primary_connectors=[SCNConnector()], secondary_connectors=[secondary])
         response = await service.search_step2("dcbl722b")
-        self.assertEqual(response.results, [])
-        self.assertEqual(response.analysis.total_results, 0)
+        self.assertEqual(len(response.results), 1)
+        self.assertEqual(response.results[0].source, "KMS Tools")
+        self.assertEqual(response.analysis.total_results, 1)
 
 
 if __name__ == "__main__":
