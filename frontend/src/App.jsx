@@ -96,12 +96,7 @@ function App() {
     }));
   }, [results]);
 
-  const scnPrimaryResults = useMemo(
-    () => results.filter((item) => item.source === "SCN International" || item.source === "SCN Pricing"),
-    [results]
-  );
-
-  const visibleResults = scnPrimaryResults;
+  const visibleResults = useMemo(() => results, [results]);
 
   const relatedOffersByRow = useMemo(
     () =>
@@ -282,7 +277,7 @@ function App() {
           <div>
             <div className="tag">QuoteSense Pricing Console</div>
             <h1>Primary + Secondary Connector Price Discovery</h1>
-            <p>Primary connector data (SCN International from Supabase) is shown first. Open details to run secondary connectors sequentially.</p>
+            <p>Primary connector results are shown first. Open details to run each secondary connector sequentially.</p>
           </div>
 
           <div className="help-card">
@@ -320,7 +315,9 @@ function App() {
           <h2>Items found</h2>
           {apiError && <div className="error-box"><strong>API error:</strong> {apiError}</div>}
           {loading && <div className="info-box inline-loader"><span className="spinner" />Loading primary connector pricing...</div>}
-          {!loading && !apiError && canSearch && visibleResults.length === 0 && <div className="info-box">No SCN matches were found for this query.</div>}
+          {!loading && !apiError && canSearch && visibleResults.length === 0 && (
+            <div className="info-box">No connector matches were found for this query.</div>
+          )}
           {!loading && !apiError && canSearch && visibleResults.length > 0 && (analysis?.priced_results ?? 0) === 0 && (
             <div className="info-box">No price could be found yet. Items are shown with defaults so you can still compare sources.</div>
           )}
