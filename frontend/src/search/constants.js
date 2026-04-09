@@ -46,4 +46,4 @@ export const detailConnectorConfigs = [
 /** @type {number[]} */
 export const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
-export const MIN_QUERY_LENGTH = 4;
+export const MIN_QUERY_LENGTH = 1;
