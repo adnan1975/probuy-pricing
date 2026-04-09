@@ -1,35 +1,36 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./App.css";
-
-const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-const expectedSources = ["SCN International", "KMS Tools", "White Cap", "Canadian Tire", "Amazon.ca", "Home Depot"];
-const detailConnectorConfigs = [
-  { source: "KMS Tools", endpoint: "kms_tools" },
-  { source: "White Cap", endpoint: "white_cap" },
-  { source: "Canadian Tire", endpoint: "canadian_tire" },
-  { source: "Home Depot", endpoint: "home_depot" },
-  { source: "Amazon.ca", endpoint: "amazon_ca" }
-];
-const PAGE_SIZE_OPTIONS = [10, 25, 50];
-const MIN_QUERY_LENGTH = 4;
+import { API_URL, expectedSources } from "./search/constants";
+import { fetchStep1Results } from "./search/searchApi";
+import { SearchResultsPanel } from "./search/SearchResultsPanel";
+import { useFilterState } from "./search/useFilterState";
+import { useProductDetailExpansion } from "./search/useProductDetailExpansion";
+import { useSearchInput } from "./search/useSearchInput";
 
 function App() {
-  const [query, setQuery] = useState("");
+  const { query, setQuery, trimmedQuery, canSearch } = useSearchInput();
+  const { page, setPage, pageSize, setPageSize, resetFilters } = useFilterState();
+
   const [results, setResults] = useState([]);
   const [analysis, setAnalysis] = useState(null);
   const [perSourceErrors, setPerSourceErrors] = useState({});
   const [loading, setLoading] = useState(false);
-  const [detailsState, setDetailsState] = useState({});
   const [apiError, setApiError] = useState("");
-
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
   const [totalPages, setTotalPages] = useState(0);
   const [totalResults, setTotalResults] = useState(0);
-  const [expandedRows, setExpandedRows] = useState({});
 
-  const trimmedQuery = query.trim();
-  const canSearch = trimmedQuery.length >= MIN_QUERY_LENGTH;
+  const {
+    detailsState,
+    setDetailsState,
+    expandedRows,
+    relatedOffersByRow,
+    resetDetailExpansion,
+    toggleDetails
+  } = useProductDetailExpansion({
+    apiUrl: API_URL,
+    visibleResults: results,
+    trimmedQuery
+  });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -50,18 +51,14 @@ function App() {
       setLoading(true);
       setApiError("");
       try {
-        const step1Params = new URLSearchParams({
-          product: trimmedQuery,
-          page: String(page),
-          page_size: String(pageSize)
-        });
-        const step1Res = await fetch(`${API_URL}/search/step1?${step1Params.toString()}`, {
+        const step1Data = await fetchStep1Results({
+          apiUrl: API_URL,
+          query: trimmedQuery,
+          page,
+          pageSize,
           signal: controller.signal
         });
-        if (!step1Res.ok) {
-          throw new Error(`Backend returned ${step1Res.status} from step1`);
-        }
-        const step1Data = await step1Res.json();
+
         const scnResults = Array.isArray(step1Data.results) ? step1Data.results : [];
         setResults(scnResults);
         setDetailsState({});
@@ -86,7 +83,7 @@ function App() {
 
     loadResults();
     return () => controller.abort();
-  }, [canSearch, page, pageSize, trimmedQuery]);
+  }, [canSearch, page, pageSize, setDetailsState, trimmedQuery]);
 
   const sourceSummary = useMemo(() => {
     const inResults = new Set(results.map((item) => item.source).filter(Boolean));
@@ -97,18 +94,6 @@ function App() {
   }, [results]);
 
   const visibleResults = useMemo(() => results, [results]);
-
-  const relatedOffersByRow = useMemo(
-    () =>
-      Object.entries(detailsState).reduce((acc, [rowIndex, rowState]) => {
-        const offers = detailConnectorConfigs
-          .map((config) => rowState?.offersBySource?.[config.source])
-          .filter(Boolean);
-        acc[rowIndex] = offers;
-        return acc;
-      }, {}),
-    [detailsState]
-  );
 
   function formatSuggestedPrice(item, rowIndex) {
     const relatedOffers = relatedOffersByRow[rowIndex] || [];
@@ -134,136 +119,24 @@ function App() {
 
   function handleQueryChange(value) {
     setQuery(value);
-    setPage(1);
-    setExpandedRows({});
-    setDetailsState({});
+    resetFilters();
+    resetDetailExpansion();
   }
 
   function handlePageSizeChange(value) {
-    setPageSize(Number(value));
-    setPage(1);
-    setExpandedRows({});
-    setDetailsState({});
-  }
-
-  async function loadDetailsForRow(rowIndex) {
-    const rowItem = visibleResults[rowIndex];
-    if (!rowItem) {
-      return;
-    }
-
-    const rowKey = String(rowIndex);
-    const detailQuery = String(
-      rowItem.sku || rowItem.manufacturer_model || rowItem.title || trimmedQuery
-    ).trim();
-    if (!detailQuery) {
-      return;
-    }
-
-    setDetailsState((prev) => {
-      const existing = prev[rowKey] || {};
-      return {
-        ...prev,
-        [rowKey]: {
-          ...existing,
-          loaded: false,
-          loadingAll: true,
-          offersBySource: existing.offersBySource || {},
-          errorsBySource: existing.errorsBySource || {},
-          loadingBySource: detailConnectorConfigs.reduce(
-            (acc, config) => ({ ...acc, [config.source]: true }),
-            existing.loadingBySource || {}
-          )
-        }
-      };
-    });
-
-    for (const connector of detailConnectorConfigs) {
-      try {
-        const response = await fetch(`${API_URL}/search/${connector.endpoint}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: detailQuery })
-        });
-        const payload = response.ok ? await response.json() : null;
-        const connectorResults = Array.isArray(payload?.results) ? payload.results : [];
-        const priced = connectorResults.find((item) => typeof item.price_value === "number") || null;
-        const connectorError =
-          payload?.error || (!response.ok ? `Backend returned ${response.status}` : null);
-
-        setDetailsState((prev) => {
-          const existing = prev[rowKey] || {};
-          return {
-            ...prev,
-            [rowKey]: {
-              ...existing,
-              offersBySource: {
-                ...(existing.offersBySource || {}),
-                [connector.source]: priced
-              },
-              errorsBySource: {
-                ...(existing.errorsBySource || {}),
-                [connector.source]: connectorError
-              },
-              loadingBySource: {
-                ...(existing.loadingBySource || {}),
-                [connector.source]: false
-              }
-            }
-          };
-        });
-      } catch (err) {
-        setDetailsState((prev) => ({
-          ...prev,
-          [rowKey]: {
-            ...(prev[rowKey] || {}),
-            offersBySource: {
-              ...((prev[rowKey] || {}).offersBySource || {}),
-              [connector.source]: null
-            },
-            errorsBySource: {
-              ...((prev[rowKey] || {}).errorsBySource || {}),
-              [connector.source]: err.message || "Connector request failed"
-            },
-            loadingBySource: {
-              ...((prev[rowKey] || {}).loadingBySource || {}),
-              [connector.source]: false
-            }
-          }
-        }));
-      }
-    }
-
-    setDetailsState((prev) => ({
-      ...prev,
-      [rowKey]: {
-        ...(prev[rowKey] || {}),
-        loaded: true,
-        loadingAll: false
-      }
-    }));
-  }
-
-  function toggleDetails(index) {
-    setExpandedRows((prev) => {
-      const nextExpanded = !prev[index];
-      if (nextExpanded && !detailsState[String(index)]?.loaded && !detailsState[String(index)]?.loadingAll) {
-        loadDetailsForRow(index);
-      }
-      return { ...prev, [index]: nextExpanded };
-    });
+    setPageSize(value);
+    resetDetailExpansion();
   }
 
   useEffect(() => {
     const connectorOffers = Object.values(detailsState)
       .flatMap((rowState) =>
-        detailConnectorConfigs
-          .map((config) => rowState?.offersBySource?.[config.source])
-          .filter(Boolean)
+        Object.values(rowState?.offersBySource || {}).filter(Boolean)
       );
     const pricedResults = [...visibleResults, ...connectorOffers].filter(
       (item) => typeof item.price_value === "number"
     ).length;
+
     setAnalysis((prev) => {
       if (!prev) {
         return prev;
@@ -318,153 +191,25 @@ function App() {
           <div className="summary-card"><div className="label">Priced results</div><div className="value">{analysis?.priced_results ?? 0}</div></div>
         </div>
 
-        <div className="panel">
-          <h2>Items found</h2>
-          {apiError && <div className="error-box"><strong>API error:</strong> {apiError}</div>}
-          {loading && <div className="info-box inline-loader"><span className="spinner" />Loading primary connector pricing...</div>}
-          {!loading && !apiError && canSearch && visibleResults.length === 0 && (
-            <div className="info-box">No connector matches were found for this query.</div>
-          )}
-          {!loading && !apiError && canSearch && visibleResults.length > 0 && (analysis?.priced_results ?? 0) === 0 && (
-            <div className="info-box">No price could be found yet. Items are shown with defaults so you can still compare sources.</div>
-          )}
-
-          <div className="pagination-controls">
-            <div>
-              Showing <strong>{visibleResults.length}</strong> of <strong>{totalResults}</strong> results
-            </div>
-            <label>
-              Page size
-              <select value={pageSize} onChange={(e) => handlePageSizeChange(e.target.value)}>
-                {PAGE_SIZE_OPTIONS.map((size) => (
-                  <option key={size} value={size}>{size}</option>
-                ))}
-              </select>
-            </label>
-            <div className="page-buttons">
-              <button onClick={() => setPage((prev) => Math.max(1, prev - 1))} disabled={!canSearch || loading || page <= 1}>
-                Previous
-              </button>
-              <span>Page {totalPages === 0 ? 0 : page} of {totalPages}</span>
-              <button
-                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-                disabled={!canSearch || loading || totalPages === 0 || page >= totalPages}
-              >
-                Next
-              </button>
-            </div>
-          </div>
-
-          <div className="retailer-table-wrap">
-            <table className="retailer-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Source</th>
-                  <th>Model</th>
-                  <th>Manufacturer</th>
-                  <th>Manufacturer Model</th>
-                  <th>Distributor Cost</th>
-                  <th>Title</th>
-                  <th>SKU</th>
-                  <th>Warehouse Location</th>
-                  <th>Price</th>
-                  <th>Availability</th>
-                  <th>Suggested Price</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleResults.map((item, idx) => {
-                  const rowKey = `${item.source}-${idx}`;
-                  const relatedOffers = relatedOffersByRow[idx] || [];
-                  const rowDetails = detailsState[String(idx)] || {};
-                  const isExpanded = Boolean(expandedRows[idx]);
-                  return (
-                    <Fragment key={rowKey}>
-                      <tr>
-                        <td>{(page - 1) * pageSize + idx + 1}</td>
-                        <td>
-                          <div className="table-strong">{item.source}</div>
-                          <div className="table-sub">
-                            <span className={`pill ${item.source_type === "distributor" ? "green" : "blue"}`}>
-                              {item.source_type || "retail"}
-                            </span>
-                          </div>
-                        </td>
-                        <td>{item.model || item.sku || "N/A"}</td>
-                        <td>{item.brand || "N/A"}</td>
-                        <td>{item.manufacturer_model || "N/A"}</td>
-                        <td>{formatCurrency(item.distributor_cost)}</td>
-                        <td>{item.title}</td>
-                        <td>{item.sku || "N/A"}</td>
-                        <td>{item.location || item.warehouse_location || item.warehouse || "N/A"}</td>
-                        <td>{item.price_text || "Price unavailable"}</td>
-                        <td>{item.availability || "Unknown"}</td>
-                        <td className="suggested-price">{formatSuggestedPrice(item, idx)}</td>
-                        <td>
-                          <button className="publish-btn" type="button">
-                            Publish Price
-                          </button>
-                          <button
-                            className="details-btn"
-                            type="button"
-                            onClick={() => toggleDetails(idx)}
-                          >
-                            {isExpanded ? "Hide Details" : "Details"}
-                          </button>
-                        </td>
-                      </tr>
-                      {isExpanded && (
-                        <tr className="details-row">
-                          <td colSpan={13}>
-                            <div className="details-title">Connector prices for {item.sku || item.title}</div>
-                            <div className="details-grid">
-                              {detailConnectorConfigs.map((connector) => {
-                                const offer = rowDetails.offersBySource?.[connector.source] || null;
-                                const isLoading = Boolean(rowDetails.loadingBySource?.[connector.source]);
-                                const error = rowDetails.errorsBySource?.[connector.source];
-                                return (
-                                  <div className="details-card" key={connector.source}>
-                                    <div className="table-strong">{connector.source}</div>
-                                    {isLoading ? (
-                                      <div className="details-loader"><span className="spinner" /> Loading...</div>
-                                    ) : (
-                                      <div>{offer?.price_text || "Price unavailable"}</div>
-                                    )}
-                                    <div className="table-sub">
-                                      {offer?.availability || (error ? `Error: ${error}` : "Waiting for connector")}
-                                    </div>
-                                    {offer?.product_url && (
-                                      <a
-                                        className="details-link"
-                                        href={offer.product_url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                      >
-                                        Open details ↗
-                                      </a>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                              {!rowDetails.loadingAll && relatedOffers.length === 0 && (
-                                <div className="details-card details-empty">
-                                  <div className="table-strong">No connector prices found</div>
-                                  <div className="table-sub">Connectors returned no priced matches for this item.</div>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <SearchResultsPanel
+          apiError={apiError}
+          loading={loading}
+          canSearch={canSearch}
+          visibleResults={visibleResults}
+          analysis={analysis}
+          totalResults={totalResults}
+          page={page}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          setPage={setPage}
+          onPageSizeChange={handlePageSizeChange}
+          detailsState={detailsState}
+          expandedRows={expandedRows}
+          relatedOffersByRow={relatedOffersByRow}
+          formatCurrency={formatCurrency}
+          formatSuggestedPrice={formatSuggestedPrice}
+          onToggleDetails={toggleDetails}
+        />
 
         {Object.keys(perSourceErrors).length > 0 && (
           <div className="panel">
