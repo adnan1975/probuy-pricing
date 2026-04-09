@@ -14,7 +14,7 @@ logging.basicConfig(
     level=getattr(logging, settings.app_log_level, logging.INFO),
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
 )
-logger = logging.getLogger("quotesense.api")
+logger = logging.getLogger("pricesense.api")
 RSS_WARNING_THRESHOLD_MB = 400.0
 
 
@@ -23,7 +23,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="QuoteSense API", lifespan=lifespan)
+app = FastAPI(title="PriceSense API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -99,7 +99,7 @@ async def log_request_memory(request: Request, call_next):
 @app.get("/")
 def home() -> dict[str, str]:
     logger.info("Home endpoint called")
-    return {"message": "QuoteSense API running"}
+    return {"message": "PriceSense API running"}
 
 
 app.include_router(search_router)

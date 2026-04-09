@@ -1,4 +1,4 @@
-# QuoteSense Backend
+# PriceSense Backend
 
 FastAPI backend for SCN-based price discovery.
 

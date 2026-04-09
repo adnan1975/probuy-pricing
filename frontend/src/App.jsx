@@ -222,7 +222,7 @@ function App() {
     <div className="page">
       <div className="container">
         <nav className="menu-bar">
-          <div className="menu-title">QuoteSense Internal Console</div>
+          <div className="menu-title">PriceSense Internal Console</div>
           <div className="menu-items">
             {topMenuItems.map((item) => (
               <button

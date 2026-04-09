@@ -1,7 +1,7 @@
-# QuoteSense Engineering Instructions
+# PriceSense Engineering Instructions
 
 ## Project Goal
-QuoteSense is an AI-powered industrial pricing comparison tool.
+PriceSense is an AI-powered industrial pricing comparison tool.
 
 It should:
 - Search for a product across White Cap, KMS Tools, Canadian Tire, and Home Depot

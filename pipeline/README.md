@@ -1,4 +1,4 @@
-# QuoteSense Pipeline
+# PriceSense Pipeline
 
 Data ingestion utilities for preparing SCN pricing data and loading it into Supabase.
 
