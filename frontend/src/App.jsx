@@ -125,6 +125,13 @@ function App() {
     return `$${suggestedPriceValue.toFixed(2)}`;
   }
 
+  function formatCurrency(value) {
+    if (typeof value !== "number") {
+      return "N/A";
+    }
+    return `$${value.toFixed(2)}`;
+  }
+
   function handleQueryChange(value) {
     setQuery(value);
     setPage(1);
@@ -354,6 +361,10 @@ function App() {
                 <tr>
                   <th>#</th>
                   <th>Source</th>
+                  <th>Model</th>
+                  <th>Manufacturer</th>
+                  <th>Manufacturer Model</th>
+                  <th>Distributor Cost</th>
                   <th>Title</th>
                   <th>SKU</th>
                   <th>Warehouse Location</th>
@@ -381,6 +392,10 @@ function App() {
                             </span>
                           </div>
                         </td>
+                        <td>{item.model || item.sku || "N/A"}</td>
+                        <td>{item.brand || "N/A"}</td>
+                        <td>{item.manufacturer_model || "N/A"}</td>
+                        <td>{formatCurrency(item.distributor_cost)}</td>
                         <td>{item.title}</td>
                         <td>{item.sku || "N/A"}</td>
                         <td>{item.location || item.warehouse_location || item.warehouse || "N/A"}</td>
@@ -402,7 +417,7 @@ function App() {
                       </tr>
                       {isExpanded && (
                         <tr className="details-row">
-                          <td colSpan={9}>
+                          <td colSpan={13}>
                             <div className="details-title">Connector prices for {item.sku || item.title}</div>
                             <div className="details-grid">
                               {detailConnectorConfigs.map((connector) => {
