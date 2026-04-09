@@ -551,6 +551,12 @@ body {
   gap: 8px;
 }
 
+.results-loader-image {
+  width: 22px;
+  height: 22px;
+  animation: spin 0.9s linear infinite;
+}
+
 .spinner {
   width: 14px;
   height: 14px;
@@ -617,6 +623,42 @@ body {
   top: 20px;
 }
 
+.filter-sidebar.collapsed {
+  padding-bottom: 12px;
+}
+
+.filter-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.filter-collapse-btn,
+.apply-filter-btn {
+  border: 1px solid #d4d4d8;
+  border-radius: 10px;
+  background: #fafafa;
+  color: #27272a;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.filter-collapse-btn {
+  padding: 6px 10px;
+}
+
+.apply-filter-btn {
+  width: 100%;
+  margin-top: 16px;
+  padding: 10px 12px;
+}
+
+.apply-filter-btn:hover,
+.filter-collapse-btn:hover {
+  background: #f4f4f5;
+}
+
 .filter-group {
   display: flex;
   flex-direction: column;
@@ -647,8 +689,18 @@ body {
 }
 
 .range-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  gap: 8px;
+}
+
+.range-row input {
+  width: 4ch;
+  min-width: 4ch;
+}
+
+.warehouse-checkboxes {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 

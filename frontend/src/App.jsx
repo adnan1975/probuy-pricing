@@ -17,9 +17,12 @@ function App() {
     setPage,
     pageSize,
     setPageSize,
+    draftFilters,
     filters,
     updateFilter,
     updateRangeFilter,
+    toggleWarehouse,
+    applyFilters,
     resetFilters
   } = useFilterState();
 
@@ -30,6 +33,7 @@ function App() {
   const [apiError, setApiError] = useState("");
   const [totalPages, setTotalPages] = useState(0);
   const [totalResults, setTotalResults] = useState(0);
+  const [isFilterCollapsed, setIsFilterCollapsed] = useState(false);
 
   const {
     detailsState,
@@ -110,6 +114,7 @@ function App() {
     const modelFilter = filters.model.trim().toLowerCase();
     const manufacturerModelFilter = filters.manufacturerModel.trim().toLowerCase();
     const selectedUnit = filters.unit;
+    const selectedWarehouses = filters.warehouses;
     const listPriceMin = parseOptionalNumber(filters.listPrice.min);
     const listPriceMax = parseOptionalNumber(filters.listPrice.max);
     const distributorCostMin = parseOptionalNumber(filters.distributorCost.min);
@@ -127,8 +132,9 @@ function App() {
         Number.isNaN(distributorCostMin) || Number.isNaN(distributorCostValue) || distributorCostValue >= distributorCostMin;
       const distributorCostMaxMatch =
         Number.isNaN(distributorCostMax) || Number.isNaN(distributorCostValue) || distributorCostValue <= distributorCostMax;
-      const hasWarehouse = Boolean((item.warehouse || item.warehouse_location || item.location || "").trim());
-      const warehouseMatches = !filters.warehouseOnly || hasWarehouse;
+      const warehouseValue = (item.warehouse || item.warehouse_location || item.location || "").trim().toUpperCase();
+      const warehouseMatches =
+        selectedWarehouses.length === 0 || selectedWarehouses.some((warehouseCode) => warehouseValue.includes(warehouseCode));
       const itemUnit = (item.unit || "").trim();
       const unitMatches = selectedUnit === "all" || itemUnit === selectedUnit;
 
@@ -282,85 +288,108 @@ function App() {
             </div>
 
             <div className="pricing-layout">
-              <aside className="filter-sidebar panel">
-                <h2>Filters</h2>
-                <p className="panel-subtext">Structured filtering for catalog management and pricing governance.</p>
-
-                <div className="search-box search-box-compact">
-                  <input
-                    value={query}
-                    onChange={(e) => handleQueryChange(e.target.value)}
-                    placeholder="Search SCN pricing table by model, manufacturer, description, or part number"
-                  />
+              <aside className={`filter-sidebar panel ${isFilterCollapsed ? "collapsed" : ""}`}>
+                <div className="filter-sidebar-header">
+                  <h2>Filters</h2>
+                  <button
+                    type="button"
+                    className="filter-collapse-btn"
+                    onClick={() => setIsFilterCollapsed((prev) => !prev)}
+                  >
+                    {isFilterCollapsed ? "Expand" : "Collapse"}
+                  </button>
                 </div>
+                {!isFilterCollapsed && (
+                  <>
+                    <p className="panel-subtext">Structured filtering for catalog management and pricing governance.</p>
 
-                <label className="filter-group">
-                  <span>Model</span>
-                  <input value={filters.model} onChange={(e) => updateFilter("model", e.target.value)} placeholder="Filter model" />
-                </label>
+                    <div className="search-box search-box-compact">
+                      <input
+                        value={query}
+                        onChange={(e) => handleQueryChange(e.target.value)}
+                        placeholder="Search SCN pricing table by model, manufacturer, description, or part number"
+                      />
+                    </div>
 
-                <label className="filter-group">
-                  <span>Manufacturer Model</span>
-                  <input
-                    value={filters.manufacturerModel}
-                    onChange={(e) => updateFilter("manufacturerModel", e.target.value)}
-                    placeholder="Filter manufacturer model"
-                  />
-                </label>
+                    <label className="filter-group">
+                      <span>Model</span>
+                      <input value={draftFilters.model} onChange={(e) => updateFilter("model", e.target.value)} placeholder="Filter model" />
+                    </label>
 
-                <div className="filter-group">
-                  <span>List Price Range</span>
-                  <div className="range-row">
-                    <input
-                      type="number"
-                      value={filters.listPrice.min}
-                      onChange={(e) => updateRangeFilter("listPrice", "min", e.target.value)}
-                      placeholder="Min"
-                    />
-                    <input
-                      type="number"
-                      value={filters.listPrice.max}
-                      onChange={(e) => updateRangeFilter("listPrice", "max", e.target.value)}
-                      placeholder="Max"
-                    />
-                  </div>
-                </div>
+                    <label className="filter-group">
+                      <span>Manufacturer Model</span>
+                      <input
+                        value={draftFilters.manufacturerModel}
+                        onChange={(e) => updateFilter("manufacturerModel", e.target.value)}
+                        placeholder="Filter manufacturer model"
+                      />
+                    </label>
 
-                <div className="filter-group">
-                  <span>Distributor Cost Range</span>
-                  <div className="range-row">
-                    <input
-                      type="number"
-                      value={filters.distributorCost.min}
-                      onChange={(e) => updateRangeFilter("distributorCost", "min", e.target.value)}
-                      placeholder="Min"
-                    />
-                    <input
-                      type="number"
-                      value={filters.distributorCost.max}
-                      onChange={(e) => updateRangeFilter("distributorCost", "max", e.target.value)}
-                      placeholder="Max"
-                    />
-                  </div>
-                </div>
+                    <div className="filter-group">
+                      <span>List Price Range</span>
+                      <div className="range-row">
+                        <input
+                          type="number"
+                          value={draftFilters.listPrice.min}
+                          onChange={(e) => updateRangeFilter("listPrice", "min", e.target.value)}
+                          placeholder="Min"
+                        />
+                        <input
+                          type="number"
+                          value={draftFilters.listPrice.max}
+                          onChange={(e) => updateRangeFilter("listPrice", "max", e.target.value)}
+                          placeholder="Max"
+                        />
+                      </div>
+                    </div>
 
-                <label className="filter-group checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={filters.warehouseOnly}
-                    onChange={(e) => updateFilter("warehouseOnly", e.target.checked)}
-                  />
-                  <span>Warehouse records only</span>
-                </label>
+                    <div className="filter-group">
+                      <span>Distributor Cost Range</span>
+                      <div className="range-row">
+                        <input
+                          type="number"
+                          value={draftFilters.distributorCost.min}
+                          onChange={(e) => updateRangeFilter("distributorCost", "min", e.target.value)}
+                          placeholder="Min"
+                        />
+                        <input
+                          type="number"
+                          value={draftFilters.distributorCost.max}
+                          onChange={(e) => updateRangeFilter("distributorCost", "max", e.target.value)}
+                          placeholder="Max"
+                        />
+                      </div>
+                    </div>
 
-                <label className="filter-group">
-                  <span>Unit</span>
-                  <select value={filters.unit} onChange={(e) => updateFilter("unit", e.target.value)}>
-                    {unitOptions.map((option) => (
-                      <option key={option} value={option}>{option === "all" ? "All units" : option}</option>
-                    ))}
-                  </select>
-                </label>
+                    <div className="filter-group">
+                      <span>Warehouse</span>
+                      <div className="warehouse-checkboxes">
+                        {["VAN", "EDM", "MTL"].map((warehouseCode) => (
+                          <label className="checkbox-row" key={warehouseCode}>
+                            <input
+                              type="checkbox"
+                              checked={draftFilters.warehouses.includes(warehouseCode)}
+                              onChange={() => toggleWarehouse(warehouseCode)}
+                            />
+                            <span>{warehouseCode}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <label className="filter-group">
+                      <span>Unit</span>
+                      <select value={draftFilters.unit} onChange={(e) => updateFilter("unit", e.target.value)}>
+                        {unitOptions.map((option) => (
+                          <option key={option} value={option}>{option === "all" ? "All units" : option}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <button type="button" className="apply-filter-btn" onClick={applyFilters}>
+                      Apply Filters
+                    </button>
+                  </>
+                )}
               </aside>
 
               <div className="pricing-content">
