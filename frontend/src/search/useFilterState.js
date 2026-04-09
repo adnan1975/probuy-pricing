@@ -7,13 +7,14 @@ const defaultFilters = {
   manufacturerModel: "",
   listPrice: { ...defaultPriceRange },
   distributorCost: { ...defaultPriceRange },
-  warehouseOnly: false,
+  warehouses: [],
   unit: "all"
 };
 
 export function useFilterState() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [draftFilters, setDraftFilters] = useState(defaultFilters);
   const [filters, setFilters] = useState(defaultFilters);
 
   function updatePageSize(value) {
@@ -22,18 +23,34 @@ export function useFilterState() {
   }
 
   function updateFilter(field, value) {
-    setFilters((prev) => ({ ...prev, [field]: value }));
-    setPage(1);
+    setDraftFilters((prev) => ({ ...prev, [field]: value }));
   }
 
   function updateRangeFilter(field, bound, value) {
-    setFilters((prev) => ({
+    setDraftFilters((prev) => ({
       ...prev,
       [field]: {
         ...prev[field],
         [bound]: value
       }
     }));
+  }
+
+  function toggleWarehouse(warehouseCode) {
+    setDraftFilters((prev) => {
+      const hasWarehouse = prev.warehouses.includes(warehouseCode);
+      const nextWarehouses = hasWarehouse
+        ? prev.warehouses.filter((code) => code !== warehouseCode)
+        : [...prev.warehouses, warehouseCode];
+      return {
+        ...prev,
+        warehouses: nextWarehouses
+      };
+    });
+  }
+
+  function applyFilters() {
+    setFilters(draftFilters);
     setPage(1);
   }
 
@@ -42,6 +59,7 @@ export function useFilterState() {
     if (includeQuery) {
       setPageSize(25);
     }
+    setDraftFilters(defaultFilters);
     setFilters(defaultFilters);
   }
 
@@ -50,9 +68,12 @@ export function useFilterState() {
     setPage,
     pageSize,
     setPageSize: updatePageSize,
+    draftFilters,
     filters,
     updateFilter,
     updateRangeFilter,
+    toggleWarehouse,
+    applyFilters,
     resetFilters
   };
 }

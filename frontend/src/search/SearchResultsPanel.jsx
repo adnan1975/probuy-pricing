@@ -1,5 +1,6 @@
 import { Fragment } from "react";
 import { detailConnectorConfigs, PAGE_SIZE_OPTIONS } from "./constants";
+import loaderImage from "../assets/results-loader.svg";
 
 export function SearchResultsPanel({
   apiError,
@@ -24,7 +25,12 @@ export function SearchResultsPanel({
     <div className="panel">
       <h2>Items found</h2>
       {apiError && <div className="error-box"><strong>API error:</strong> {apiError}</div>}
-      {loading && <div className="info-box inline-loader"><span className="spinner" />Loading primary connector pricing...</div>}
+      {loading && (
+        <div className="info-box inline-loader">
+          <img src={loaderImage} alt="Loading results" className="results-loader-image" />
+          Loading primary connector pricing...
+        </div>
+      )}
       {!loading && !apiError && canSearch && visibleResults.length === 0 && (
         <div className="info-box">No connector matches were found for this query.</div>
       )}
