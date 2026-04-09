@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import resource
+import psutil
 
 
 def get_rss_mb() -> float:
     """Return resident set size (RSS) in megabytes."""
-    usage_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    return usage_kb / 1024.0
+    usage_mb = psutil.Process().memory_info().rss / (1024 * 1024)
+    return usage_mb
 

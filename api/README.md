@@ -55,3 +55,5 @@ If `--csv` is omitted, the job uses `SCN_PRICING_CSV` env var and then falls bac
 cd api
 uvicorn main:app --reload
 ```
+
+to put back playwright in render && PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/.playwright-browsers python -m playwright install chromium
