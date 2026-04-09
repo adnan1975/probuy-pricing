@@ -358,11 +358,11 @@ function App() {
 
               <div className="pricing-content">
                 {!canSearch && (
-                  <div className="info-box muted-box">Type at least 4 characters before searching.</div>
+                  <div className="info-box muted-box">Type a search term to load results.</div>
                 )}
 
                 <div className="summary-grid">
-                  <div className="summary-card"><div className="label">Search term</div><div className="value">{query || "(type at least 4 characters)"}</div></div>
+                  <div className="summary-card"><div className="label">Search term</div><div className="value">{query || "(type a search term)"}</div></div>
                   <div className="summary-card"><div className="label">Page results</div><div className="value">{results.length}</div></div>
                   <div className="summary-card"><div className="label">Filtered results</div><div className="value">{visibleResults.length}</div></div>
                   <div className="summary-card"><div className="label">Priced results</div><div className="value">{analysis?.priced_results ?? 0}</div></div>
