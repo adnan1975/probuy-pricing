@@ -11,8 +11,10 @@ class NormalizedResult(BaseModel):
     price_value: float | None = None
     currency: str = "CAD"
     sku: str | None = None
+    model: str | None = None
     manufacturer_model: str | None = None
     brand: str | None = None
+    distributor_cost: float | None = None
     availability: str = "Unknown"
     location: str | None = None
     product_url: str | None = None
