@@ -100,13 +100,20 @@ function App() {
   }, [activePage, canSearch, page, pageSize, setDetailsState, trimmedQuery]);
 
   const visibleResults = useMemo(() => {
+    const parseOptionalNumber = (value) => {
+      if (value === "" || value === null || value === undefined) {
+        return Number.NaN;
+      }
+      return Number(value);
+    };
+
     const modelFilter = filters.model.trim().toLowerCase();
     const manufacturerModelFilter = filters.manufacturerModel.trim().toLowerCase();
     const selectedUnit = filters.unit;
-    const listPriceMin = Number(filters.listPrice.min);
-    const listPriceMax = Number(filters.listPrice.max);
-    const distributorCostMin = Number(filters.distributorCost.min);
-    const distributorCostMax = Number(filters.distributorCost.max);
+    const listPriceMin = parseOptionalNumber(filters.listPrice.min);
+    const listPriceMax = parseOptionalNumber(filters.listPrice.max);
+    const distributorCostMin = parseOptionalNumber(filters.distributorCost.min);
+    const distributorCostMax = parseOptionalNumber(filters.distributorCost.max);
 
     return results.filter((item) => {
       const modelMatches = !modelFilter || (item.model || "").toLowerCase().includes(modelFilter);
