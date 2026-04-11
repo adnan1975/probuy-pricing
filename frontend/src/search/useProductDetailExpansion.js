@@ -54,7 +54,7 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
     return Array.from(new Set(rawCandidates.map((item) => String(item || "").trim()).filter(Boolean)));
   }
 
-  async function loadDetailsForRow(rowIndex, { force = false } = {}) {
+  async function loadDetailsForRow(rowIndex, { force = false, sources = null } = {}) {
     const rowItem = visibleResults[rowIndex];
     if (!rowItem) {
       return;
@@ -66,7 +66,16 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
       return;
     }
 
-    if (!force && detailsState[rowKey]?.loaded) {
+    const sourceSet = Array.isArray(sources) && sources.length > 0 ? new Set(sources) : null;
+    const connectorsToLoad = sourceSet
+      ? detailConnectorConfigs.filter((connector) => sourceSet.has(connector.source))
+      : detailConnectorConfigs;
+
+    if (connectorsToLoad.length === 0) {
+      return;
+    }
+
+    if (!force && !sourceSet && detailsState[rowKey]?.loaded) {
       return;
     }
 
@@ -82,7 +91,7 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
           loadingAll: true,
           offersBySource: existing.offersBySource || {},
           errorsBySource: existing.errorsBySource || {},
-          statusBySource: detailConnectorConfigs.reduce(
+          statusBySource: connectorsToLoad.reduce(
             (acc, config) => ({
               ...acc,
               [config.source]: {
@@ -95,7 +104,7 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
             }),
             existing.statusBySource || {}
           ),
-          loadingBySource: detailConnectorConfigs.reduce(
+          loadingBySource: connectorsToLoad.reduce(
             (acc, config) => ({ ...acc, [config.source]: true }),
             existing.loadingBySource || {}
           )
@@ -103,7 +112,7 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
       };
     });
 
-    for (const connector of detailConnectorConfigs) {
+    for (const connector of connectorsToLoad) {
       updateConnectorStatus({
         rowKey,
         source: connector.source,
@@ -218,14 +227,18 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
       }
     }
 
-    setDetailsState((prev) => ({
-      ...prev,
-      [rowKey]: {
-        ...(prev[rowKey] || {}),
-        loaded: true,
-        loadingAll: false
-      }
-    }));
+    setDetailsState((prev) => {
+      const rowState = prev[rowKey] || {};
+      const hasLoadingSource = Object.values(rowState.loadingBySource || {}).some(Boolean);
+      return {
+        ...prev,
+        [rowKey]: {
+          ...rowState,
+          loaded: !sourceSet,
+          loadingAll: hasLoadingSource
+        }
+      };
+    });
   }
 
   function toggleDetails(index) {
@@ -238,8 +251,8 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
     });
   }
 
-  function retryDetailsForRow(index) {
-    loadDetailsForRow(index, { force: true });
+  function retryDetailsForConnector(index, source) {
+    loadDetailsForRow(index, { force: true, sources: [source] });
   }
 
   return {
@@ -249,6 +262,6 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
     relatedOffersByRow,
     resetDetailExpansion,
     toggleDetails,
-    retryDetailsForRow
+    retryDetailsForConnector
   };
 }

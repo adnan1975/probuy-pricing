@@ -20,7 +20,7 @@ export function SearchResultsPanel({
   formatCurrency,
   formatSuggestedPrice,
   onToggleDetails,
-  onRetryDetails
+  onRetryConnector
 }) {
   return (
     <div className="panel">
@@ -147,17 +147,23 @@ export function SearchResultsPanel({
                                   {offer?.availability || (error ? `Error: ${error}` : "Waiting for connector")}
                                 </div>
                                 {connectorStatus.steps.length > 0 && (
-                                  <ol className="status-list">
-                                    {connectorStatus.steps.map((step, stepIndex) => (
-                                      <li key={`${connector.source}-step-${stepIndex}`}>{step}</li>
-                                    ))}
-                                  </ol>
+                                  <div className="status-list">
+                                    Status: {connectorStatus.steps[connectorStatus.steps.length - 1]}
+                                  </div>
                                 )}
                                 {!isLoading && (connectorStatus.state === "success" || connectorStatus.state === "failed") && (
                                   <div className={`status-footer ${connectorStatus.state}`}>
                                     {connectorStatus.state === "success" ? "Status: Success" : "Status: Failed"}
                                   </div>
                                 )}
+                                <button
+                                  className="details-btn"
+                                  type="button"
+                                  onClick={() => onRetryConnector(idx, connector.source)}
+                                  disabled={isLoading}
+                                >
+                                  Retry {connector.source}
+                                </button>
                                 {offer?.product_url && (
                                   <a
                                     className="details-link"
@@ -177,16 +183,6 @@ export function SearchResultsPanel({
                               <div className="table-sub">Connectors returned no priced matches for this item.</div>
                             </div>
                           )}
-                        </div>
-                        <div className="details-actions">
-                          <button
-                            className="details-btn"
-                            type="button"
-                            onClick={() => onRetryDetails(idx)}
-                            disabled={Boolean(rowDetails.loadingAll)}
-                          >
-                            Retry all connectors
-                          </button>
                         </div>
                       </td>
                     </tr>
