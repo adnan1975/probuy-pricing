@@ -23,7 +23,38 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
     setDetailsState({});
   }
 
-  async function loadDetailsForRow(rowIndex) {
+  function updateConnectorStatus({ rowKey, source, nextState, step }) {
+    setDetailsState((prev) => {
+      const existing = prev[rowKey] || {};
+      const existingStatus = existing.statusBySource?.[source] || { steps: [], state: "idle" };
+      return {
+        ...prev,
+        [rowKey]: {
+          ...existing,
+          statusBySource: {
+            ...(existing.statusBySource || {}),
+            [source]: {
+              state: nextState || existingStatus.state,
+              steps: step ? [...existingStatus.steps, step] : existingStatus.steps
+            }
+          }
+        }
+      };
+    });
+  }
+
+  function buildConnectorQueries(rowItem) {
+    const rawCandidates = [
+      rowItem?.sku,
+      rowItem?.manufacturer_model,
+      rowItem?.model,
+      rowItem?.title,
+      trimmedQuery
+    ];
+    return Array.from(new Set(rawCandidates.map((item) => String(item || "").trim()).filter(Boolean)));
+  }
+
+  async function loadDetailsForRow(rowIndex, { force = false } = {}) {
     const rowItem = visibleResults[rowIndex];
     if (!rowItem) {
       return;
@@ -35,6 +66,12 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
       return;
     }
 
+    if (!force && detailsState[rowKey]?.loaded) {
+      return;
+    }
+
+    const connectorQueries = buildConnectorQueries(rowItem);
+
     setDetailsState((prev) => {
       const existing = prev[rowKey] || {};
       return {
@@ -45,6 +82,19 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
           loadingAll: true,
           offersBySource: existing.offersBySource || {},
           errorsBySource: existing.errorsBySource || {},
+          statusBySource: detailConnectorConfigs.reduce(
+            (acc, config) => ({
+              ...acc,
+              [config.source]: {
+                state: "loading",
+                steps: [
+                  "Initializing connector",
+                  "Connected to source"
+                ]
+              }
+            }),
+            existing.statusBySource || {}
+          ),
           loadingBySource: detailConnectorConfigs.reduce(
             (acc, config) => ({ ...acc, [config.source]: true }),
             existing.loadingBySource || {}
@@ -54,12 +104,70 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
     });
 
     for (const connector of detailConnectorConfigs) {
+      updateConnectorStatus({
+        rowKey,
+        source: connector.source,
+        nextState: "loading"
+      });
+
+      let resolvedOffer = null;
+      let resolvedError = null;
+
       try {
-        const { offer, error } = await fetchDetailResults({
-          apiUrl,
-          endpoint: connector.endpoint,
-          query: detailQuery
-        });
+        for (let idx = 0; idx < connectorQueries.length; idx += 1) {
+          const candidate = connectorQueries[idx];
+          const nextCandidate = connectorQueries[idx + 1];
+
+          updateConnectorStatus({
+            rowKey,
+            source: connector.source,
+            step: `Searching for SKU ${candidate}`
+          });
+
+          const { offer, error } = await fetchDetailResults({
+            apiUrl,
+            endpoint: connector.endpoint,
+            query: candidate
+          });
+
+          if (offer) {
+            resolvedOffer = offer;
+            resolvedError = null;
+            updateConnectorStatus({
+              rowKey,
+              source: connector.source,
+              nextState: "success",
+              step: `Success: price found for ${candidate}`
+            });
+            break;
+          }
+
+          if (error) {
+            resolvedError = error;
+          }
+
+          if (nextCandidate) {
+            updateConnectorStatus({
+              rowKey,
+              source: connector.source,
+              step: `Cannot find any price, moving to model ${nextCandidate}`
+            });
+            updateConnectorStatus({
+              rowKey,
+              source: connector.source,
+              step: "Iterating through all attributes and retrying"
+            });
+          }
+        }
+
+        if (!resolvedOffer) {
+          updateConnectorStatus({
+            rowKey,
+            source: connector.source,
+            nextState: "failed",
+            step: "Failure: price not found after checking all attributes"
+          });
+        }
 
         setDetailsState((prev) => {
           const existing = prev[rowKey] || {};
@@ -69,11 +177,11 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
               ...existing,
               offersBySource: {
                 ...(existing.offersBySource || {}),
-                [connector.source]: offer
+                [connector.source]: resolvedOffer
               },
               errorsBySource: {
                 ...(existing.errorsBySource || {}),
-                [connector.source]: error
+                [connector.source]: resolvedError
               },
               loadingBySource: {
                 ...(existing.loadingBySource || {}),
@@ -83,6 +191,12 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
           };
         });
       } catch (err) {
+        updateConnectorStatus({
+          rowKey,
+          source: connector.source,
+          nextState: "failed",
+          step: `Failure: ${err.message || "Connector request failed"}`
+        });
         setDetailsState((prev) => ({
           ...prev,
           [rowKey]: {
@@ -124,12 +238,17 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
     });
   }
 
+  function retryDetailsForRow(index) {
+    loadDetailsForRow(index, { force: true });
+  }
+
   return {
     detailsState,
     setDetailsState,
     expandedRows,
     relatedOffersByRow,
     resetDetailExpansion,
-    toggleDetails
+    toggleDetails,
+    retryDetailsForRow
   };
 }
