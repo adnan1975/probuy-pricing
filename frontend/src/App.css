@@ -334,6 +334,16 @@ body {
   overflow-wrap: anywhere;
 }
 
+.result-title-header {
+  min-width: 240px;
+}
+
+.result-title-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .pagination-controls {
   display: flex;
   justify-content: space-between;
