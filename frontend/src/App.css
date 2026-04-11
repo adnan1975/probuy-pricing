@@ -438,6 +438,32 @@ body {
   background: #fff;
 }
 
+.status-list {
+  margin: 8px 0 0 18px;
+  padding: 0;
+  color: #3f3f46;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.status-footer {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-footer.success {
+  color: #15803d;
+}
+
+.status-footer.failed {
+  color: #b91c1c;
+}
+
+.details-actions {
+  margin-top: 10px;
+}
+
 
 .details-link {
   display: inline-block;

@@ -41,7 +41,8 @@ function App() {
     expandedRows,
     relatedOffersByRow,
     resetDetailExpansion,
-    toggleDetails
+    toggleDetails,
+    retryDetailsForRow
   } = useProductDetailExpansion({
     apiUrl: API_URL,
     visibleResults: results,
@@ -422,6 +423,7 @@ function App() {
                   formatCurrency={formatCurrency}
                   formatSuggestedPrice={formatSuggestedPrice}
                   onToggleDetails={toggleDetails}
+                  onRetryDetails={retryDetailsForRow}
                 />
 
                 {Object.keys(perSourceErrors).length > 0 && (

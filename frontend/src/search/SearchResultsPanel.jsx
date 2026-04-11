@@ -19,7 +19,8 @@ export function SearchResultsPanel({
   relatedOffersByRow,
   formatCurrency,
   formatSuggestedPrice,
-  onToggleDetails
+  onToggleDetails,
+  onRetryDetails
 }) {
   return (
     <div className="panel">
@@ -133,6 +134,7 @@ export function SearchResultsPanel({
                             const offer = rowDetails.offersBySource?.[connector.source] || null;
                             const isLoading = Boolean(rowDetails.loadingBySource?.[connector.source]);
                             const error = rowDetails.errorsBySource?.[connector.source];
+                            const connectorStatus = rowDetails.statusBySource?.[connector.source] || { steps: [], state: "idle" };
                             return (
                               <div className="details-card" key={connector.source}>
                                 <div className="table-strong">{connector.source}</div>
@@ -144,6 +146,18 @@ export function SearchResultsPanel({
                                 <div className="table-sub">
                                   {offer?.availability || (error ? `Error: ${error}` : "Waiting for connector")}
                                 </div>
+                                {connectorStatus.steps.length > 0 && (
+                                  <ol className="status-list">
+                                    {connectorStatus.steps.map((step, stepIndex) => (
+                                      <li key={`${connector.source}-step-${stepIndex}`}>{step}</li>
+                                    ))}
+                                  </ol>
+                                )}
+                                {!isLoading && (connectorStatus.state === "success" || connectorStatus.state === "failed") && (
+                                  <div className={`status-footer ${connectorStatus.state}`}>
+                                    {connectorStatus.state === "success" ? "Status: Success" : "Status: Failed"}
+                                  </div>
+                                )}
                                 {offer?.product_url && (
                                   <a
                                     className="details-link"
@@ -163,6 +177,16 @@ export function SearchResultsPanel({
                               <div className="table-sub">Connectors returned no priced matches for this item.</div>
                             </div>
                           )}
+                        </div>
+                        <div className="details-actions">
+                          <button
+                            className="details-btn"
+                            type="button"
+                            onClick={() => onRetryDetails(idx)}
+                            disabled={Boolean(rowDetails.loadingAll)}
+                          >
+                            Retry all connectors
+                          </button>
                         </div>
                       </td>
                     </tr>
