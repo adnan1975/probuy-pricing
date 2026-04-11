@@ -42,7 +42,7 @@ function App() {
     relatedOffersByRow,
     resetDetailExpansion,
     toggleDetails,
-    retryDetailsForRow
+    retryDetailsForConnector
   } = useProductDetailExpansion({
     apiUrl: API_URL,
     visibleResults: results,
@@ -420,11 +420,11 @@ function App() {
                   detailsState={detailsState}
                   expandedRows={expandedRows}
                   relatedOffersByRow={relatedOffersByRow}
-                  formatCurrency={formatCurrency}
-                  formatSuggestedPrice={formatSuggestedPrice}
-                  onToggleDetails={toggleDetails}
-                  onRetryDetails={retryDetailsForRow}
-                />
+              formatCurrency={formatCurrency}
+              formatSuggestedPrice={formatSuggestedPrice}
+              onToggleDetails={toggleDetails}
+              onRetryConnector={retryDetailsForConnector}
+            />
 
                 {Object.keys(perSourceErrors).length > 0 && (
                   <div className="panel">
