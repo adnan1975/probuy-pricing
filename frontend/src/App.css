@@ -11,12 +11,12 @@ body {
 
 .page {
   min-height: 100vh;
-  padding: 24px;
 }
 
 .container {
-  max-width: 1450px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  padding: 24px clamp(16px, 3vw, 32px);
 }
 
 .topbar {
@@ -767,6 +767,7 @@ body {
 
 .pricing-content {
   min-width: 0;
+  width: 100%;
 }
 
 .search-box-compact {
@@ -856,7 +857,7 @@ body {
 }
 
 @media (max-width: 700px) {
-  .page {
+  .container {
     padding: 12px;
   }
 
