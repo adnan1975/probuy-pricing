@@ -79,24 +79,27 @@ export function SearchResultsPanel({
             return (
               <div className="result-card" key={rowKey}>
                 <div className="result-card-header">
-                  <div className="table-sub">#{(page - 1) * pageSize + idx + 1}</div>
-                  <span className={`pill ${item.source_type === "distributor" ? "green" : "blue"}`}>
-                    {item.source_type || "retail"}
-                  </span>
+                  <div className="result-card-rank">#{(page - 1) * pageSize + idx + 1}</div>
+                  <div className="result-card-source-wrap">
+                    <div className="result-card-source">{item.source}</div>
+                    <span className={`pill ${item.source_type === "distributor" ? "green" : "blue"}`}>
+                      {item.source_type || "retail"}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="table-strong">{item.source}</div>
                 <div className="result-card-title" title={item.title}>{item.title}</div>
+                <div className="result-card-price">
+                  {item.price_text || "Price unavailable"}
+                </div>
 
                 <div className="result-card-meta">
-                  <div><span className="table-sub">Model:</span> {item.model || item.sku || "N/A"}</div>
-                  <div><span className="table-sub">Manufacturer:</span> {item.brand || "N/A"}</div>
-                  <div><span className="table-sub">Manufacturer Model:</span> {item.manufacturer_model || "N/A"}</div>
-                  <div><span className="table-sub">Distributor Cost:</span> {formatCurrency(item.distributor_cost)}</div>
-                  <div><span className="table-sub">SKU:</span> {item.sku || "N/A"}</div>
-                  <div><span className="table-sub">Warehouse:</span> {item.location || item.warehouse_location || item.warehouse || "N/A"}</div>
-                  <div><span className="table-sub">Price:</span> {item.price_text || "Price unavailable"}</div>
-                  <div><span className="table-sub">Availability:</span> {item.availability || "Unknown"}</div>
+                  <div className="result-card-meta-item"><span className="table-sub">Brand</span>{item.brand || "N/A"}</div>
+                  <div className="result-card-meta-item"><span className="table-sub">Model</span>{item.model || item.sku || "N/A"}</div>
+                  <div className="result-card-meta-item"><span className="table-sub">SKU</span>{item.sku || "N/A"}</div>
+                  <div className="result-card-meta-item"><span className="table-sub">Availability</span>{item.availability || "Unknown"}</div>
+                  <div className="result-card-meta-item"><span className="table-sub">Distributor Cost</span>{formatCurrency(item.distributor_cost)}</div>
+                  <div className="result-card-meta-item"><span className="table-sub">Warehouse</span>{item.location || item.warehouse_location || item.warehouse || "N/A"}</div>
                 </div>
 
                 <div className="suggested-price">Suggested Price: {formatSuggestedPrice(item, idx)}</div>

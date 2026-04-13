@@ -327,31 +327,77 @@ body {
 
 .result-card {
   border: 1px solid #e4e4e7;
-  border-radius: 16px;
-  padding: 14px;
-  background: #fafafa;
+  border-radius: 18px;
+  padding: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
+  box-shadow: 0 6px 18px rgba(24, 24, 27, 0.06);
 }
 
 .result-card-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+  gap: 10px;
+}
+
+.result-card-rank {
+  color: #71717a;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid #e4e4e7;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #fff;
+}
+
+.result-card-source-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.result-card-source {
+  font-size: 14px;
+  font-weight: 700;
+  color: #18181b;
 }
 
 .result-card-title {
-  margin: 8px 0 10px;
-  font-size: 15px;
-  font-weight: 600;
+  margin: 6px 0 10px;
+  font-size: 17px;
+  font-weight: 700;
   line-height: 1.45;
+  color: #18181b;
+}
+
+.result-card-price {
+  font-size: 30px;
+  font-weight: 800;
+  color: #0f766e;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin-bottom: 12px;
 }
 
 .result-card-meta {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 6px 12px;
-  font-size: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 8px;
+  font-size: 13px;
   margin-bottom: 12px;
+}
+
+.result-card-meta-item {
+  border: 1px solid #e4e4e7;
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: #27272a;
 }
 
 .result-card-actions {
