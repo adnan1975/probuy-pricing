@@ -333,6 +333,11 @@ body {
   box-shadow: 0 6px 18px rgba(24, 24, 27, 0.06);
 }
 
+.best-match-card {
+  border: 2px solid #22c55e;
+  box-shadow: 0 14px 28px rgba(34, 197, 94, 0.2);
+}
+
 .result-card-header {
   display: flex;
   align-items: flex-start;
@@ -349,6 +354,18 @@ body {
   border-radius: 999px;
   padding: 4px 10px;
   background: #fff;
+}
+
+.best-match-badge {
+  margin-left: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .result-card-source-wrap {

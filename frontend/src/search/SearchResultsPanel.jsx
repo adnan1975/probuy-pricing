@@ -72,14 +72,19 @@ export function SearchResultsPanel({
       {hasVisibleResults && (
         <div className="results-grid">
           {visibleResults.map((item, idx) => {
+            const rank = (page - 1) * pageSize + idx + 1;
+            const isBestMatch = rank === 1;
             const rowKey = `${item.source}-${idx}`;
             const relatedOffers = relatedOffersByRow[idx] || [];
             const rowDetails = detailsState[String(idx)] || {};
             const isExpanded = Boolean(expandedRows[idx]);
             return (
-              <div className="result-card" key={rowKey}>
+              <div className={`result-card ${isBestMatch ? "best-match-card" : ""}`} key={rowKey}>
                 <div className="result-card-header">
-                  <div className="result-card-rank">#{(page - 1) * pageSize + idx + 1}</div>
+                  <div className="result-card-rank">
+                    #{rank}
+                    {isBestMatch && <span className="best-match-badge">Best Match</span>}
+                  </div>
                   <div className="result-card-source-wrap">
                     <div className="result-card-source">{item.source}</div>
                     <span className={`pill ${item.source_type === "distributor" ? "green" : "blue"}`}>
