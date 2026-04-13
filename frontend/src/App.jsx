@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 import { API_URL } from "./search/constants";
-import { fetchStep1Results } from "./search/searchApi";
+import { fetchAutomatedPricingStatus, fetchStep1Results, startAutomatedPricing } from "./search/searchApi";
 import { SearchResultsPanel } from "./search/SearchResultsPanel";
 import { useFilterState } from "./search/useFilterState";
 import { useProductDetailExpansion } from "./search/useProductDetailExpansion";
 import { useSearchInput } from "./search/useSearchInput";
 
-const topMenuItems = ["Dashboard", "Pricing", "Settings"];
+const topMenuItems = ["Dashboard", "Pricing", "Automated Pricing Test", "Settings"];
 
 function App() {
   const [activePage, setActivePage] = useState("Pricing");
@@ -34,6 +34,11 @@ function App() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalResults, setTotalResults] = useState(0);
   const [isFilterCollapsed, setIsFilterCollapsed] = useState(false);
+  const [autoPricingJobId, setAutoPricingJobId] = useState("");
+  const [autoPricingRows, setAutoPricingRows] = useState([]);
+  const [autoPricingStatus, setAutoPricingStatus] = useState("idle");
+  const [autoPricingError, setAutoPricingError] = useState("");
+  const [autoPricingProgress, setAutoPricingProgress] = useState({ processed: 0, total: 0 });
 
   const {
     detailsState,
@@ -218,6 +223,69 @@ function App() {
     { label: "Price updates published", value: "96", trend: "+12 today" },
     { label: "Connectors healthy", value: "4 / 4", trend: "No outages in 24h" }
   ];
+
+  useEffect(() => {
+    if (activePage !== "Automated Pricing Test" || !autoPricingJobId) {
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    let timerId;
+
+    const loadStatus = async () => {
+      try {
+        const payload = await fetchAutomatedPricingStatus({
+          apiUrl: API_URL,
+          jobId: autoPricingJobId,
+          signal: controller.signal
+        });
+        setAutoPricingRows(Array.isArray(payload.rows) ? payload.rows : []);
+        setAutoPricingStatus(payload.status || "running");
+        setAutoPricingProgress({
+          processed: payload.processed_items || 0,
+          total: payload.total_items || 0
+        });
+        if (payload.status !== "completed") {
+          timerId = window.setTimeout(loadStatus, 1000);
+        }
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          setAutoPricingError(err.message || "Could not fetch automated pricing progress");
+        }
+      }
+    };
+
+    loadStatus();
+    return () => {
+      controller.abort();
+      if (timerId) {
+        window.clearTimeout(timerId);
+      }
+    };
+  }, [activePage, autoPricingJobId]);
+
+  async function handleAutomatedPricingStart() {
+    setAutoPricingError("");
+    setAutoPricingRows([]);
+    setAutoPricingStatus("starting");
+    setAutoPricingProgress({ processed: 0, total: 100 });
+    try {
+      const payload = await startAutomatedPricing({ apiUrl: API_URL, limit: 100 });
+      setAutoPricingJobId(payload.job_id);
+      setAutoPricingStatus(payload.status || "running");
+      setAutoPricingProgress({ processed: 0, total: payload.total_items || 100 });
+    } catch (err) {
+      setAutoPricingStatus("error");
+      setAutoPricingError(err.message || "Could not start automated pricing");
+    }
+  }
+
+  function formatMaybeCurrency(value) {
+    if (typeof value !== "number") {
+      return "N/A";
+    }
+    return `$${value.toFixed(2)}`;
+  }
 
   return (
     <div className="page">
@@ -457,6 +525,70 @@ function App() {
                 <div className="details-card"><div className="table-strong">Currency display</div><div className="table-sub">CAD</div></div>
                 <div className="details-card"><div className="table-strong">Auto-refresh connector prices</div><div className="table-sub">Disabled</div></div>
               </div>
+            </div>
+          </section>
+        )}
+
+        {activePage === "Automated Pricing Test" && (
+          <section>
+            <div className="topbar">
+              <div>
+                <div className="tag">Automation Test</div>
+                <h1>Automated Pricing Processing Run</h1>
+                <p>Run the first 100 SCN items and stream processed rows after all connector results are available.</p>
+              </div>
+              <button type="button" className="apply-filter-btn" onClick={handleAutomatedPricingStart}>
+                Test Automated Pricing
+              </button>
+            </div>
+
+            <div className="summary-grid two-cols compact-grid">
+              <div className="summary-card">
+                <div className="label">Run status</div>
+                <div className="value">{autoPricingStatus}</div>
+              </div>
+              <div className="summary-card">
+                <div className="label">Processed items</div>
+                <div className="value">{autoPricingProgress.processed} / {autoPricingProgress.total}</div>
+              </div>
+            </div>
+
+            {autoPricingError && <div className="error-box">{autoPricingError}</div>}
+
+            <div className="panel retailer-table-wrap">
+              <table className="retailer-table">
+                <thead>
+                  <tr>
+                    <th>Item Name</th>
+                    <th>Model</th>
+                    <th>Description</th>
+                    <th>KMS Tools Price</th>
+                    <th>Other Connector Price</th>
+                    <th>Final Price</th>
+                    <th>Published to Shopify</th>
+                    <th>Published to Method</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {autoPricingRows.length === 0 && (
+                    <tr>
+                      <td colSpan={8}>No processed rows yet. Start the run to stream results.</td>
+                    </tr>
+                  )}
+                  {autoPricingRows.map((row, index) => (
+                    <tr key={`${row.model}-${index}`}>
+                      <td>{row.item_name || "N/A"}</td>
+                      <td>{row.model || "N/A"}</td>
+                      <td>{row.description || "N/A"}</td>
+                      <td>{formatMaybeCurrency(row.kms_tools_price)}</td>
+                      <td>{formatMaybeCurrency(row.other_connector_price)}</td>
+                      <td>{formatMaybeCurrency(row.final_price)}</td>
+                      <td>{row.published_to_shopify ? "True" : "False"}</td>
+                      <td>{row.published_to_method ? "True" : "False"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </section>
         )}

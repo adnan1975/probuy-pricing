@@ -32,3 +32,21 @@ export async function fetchDetailResults({ apiUrl, endpoint, query }) {
     error: connectorError
   };
 }
+
+export async function startAutomatedPricing({ apiUrl, limit = 100 }) {
+  const response = await fetch(`${apiUrl}/automated-pricing/start?limit=${limit}`, {
+    method: "POST"
+  });
+  if (!response.ok) {
+    throw new Error(`Backend returned ${response.status} starting automated pricing`);
+  }
+  return response.json();
+}
+
+export async function fetchAutomatedPricingStatus({ apiUrl, jobId, signal }) {
+  const response = await fetch(`${apiUrl}/automated-pricing/${jobId}`, { signal });
+  if (!response.ok) {
+    throw new Error(`Backend returned ${response.status} fetching automated pricing status`);
+  }
+  return response.json();
+}

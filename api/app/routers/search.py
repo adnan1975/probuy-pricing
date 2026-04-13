@@ -3,17 +3,21 @@ import logging
 from fastapi import APIRouter, HTTPException, Path, Query
 
 from app.models.normalized_result import (
+    AutomatedPricingJobStartResponse,
+    AutomatedPricingJobStatusResponse,
     CatalogItem,
     ConnectorSearchRequest,
     ConnectorSearchResponse,
     SearchResponse,
 )
+from app.services.automated_pricing_service import AutomatedPricingService
 from app.services.scn_catalog_service import SCNCatalogService
 from app.services.search_service import SearchService
 
 router = APIRouter()
 search_service = SearchService()
 scn_catalog_service = SCNCatalogService()
+automated_pricing_service = AutomatedPricingService()
 logger = logging.getLogger(__name__)
 
 
@@ -97,3 +101,26 @@ async def catalog_all_items() -> list[CatalogItem]:
 async def catalog_health() -> dict[str, str | int | bool]:
     logger.info("Received /catalog/health request")
     return scn_catalog_service.health()
+
+
+@router.post("/automated-pricing/start", response_model=AutomatedPricingJobStartResponse)
+async def automated_pricing_start(limit: int = Query(default=100, ge=1, le=100)) -> AutomatedPricingJobStartResponse:
+    logger.info("Received /automated-pricing/start request", extra={"limit": limit})
+    job = automated_pricing_service.start_job(limit=limit)
+    return AutomatedPricingJobStartResponse(job_id=job.job_id, status=job.status, total_items=job.total_items)
+
+
+@router.get("/automated-pricing/{job_id}", response_model=AutomatedPricingJobStatusResponse)
+async def automated_pricing_status(job_id: str = Path(..., min_length=1)) -> AutomatedPricingJobStatusResponse:
+    logger.info("Received /automated-pricing/{job_id} request", extra={"job_id": job_id})
+    job = automated_pricing_service.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return AutomatedPricingJobStatusResponse(
+        job_id=job.job_id,
+        status=job.status,
+        total_items=job.total_items,
+        processed_items=job.processed_items,
+        rows=[row.__dict__ for row in job.rows],
+        errors=job.errors,
+    )
