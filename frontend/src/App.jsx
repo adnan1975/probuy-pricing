@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 import { API_URL } from "./search/constants";
-import { fetchAutomatedPricingStatus, fetchStep1Results, startAutomatedPricing } from "./search/searchApi";
+import { fetchAutomatedPricingStatus, fetchStep1Results, openAutomatedPricingStream, startAutomatedPricing } from "./search/searchApi";
 import { SearchResultsPanel } from "./search/SearchResultsPanel";
 import { useFilterState } from "./search/useFilterState";
 import { useProductDetailExpansion } from "./search/useProductDetailExpansion";
@@ -229,38 +229,69 @@ function App() {
       return undefined;
     }
 
-    const controller = new AbortController();
-    let timerId;
+    let eventSource = null;
+    let isActive = true;
 
-    const loadStatus = async () => {
+    const bootstrapStatus = async () => {
       try {
         const payload = await fetchAutomatedPricingStatus({
           apiUrl: API_URL,
-          jobId: autoPricingJobId,
-          signal: controller.signal
+          jobId: autoPricingJobId
         });
+        if (!isActive) {
+          return;
+        }
         setAutoPricingRows(Array.isArray(payload.rows) ? payload.rows : []);
         setAutoPricingStatus(payload.status || "running");
         setAutoPricingProgress({
           processed: payload.processed_items || 0,
           total: payload.total_items || 0
         });
-        if (payload.status !== "completed") {
-          timerId = window.setTimeout(loadStatus, 1000);
-        }
       } catch (err) {
-        if (err.name !== "AbortError") {
+        if (isActive) {
           setAutoPricingError(err.message || "Could not fetch automated pricing progress");
         }
       }
     };
 
-    loadStatus();
-    return () => {
-      controller.abort();
-      if (timerId) {
-        window.clearTimeout(timerId);
+    bootstrapStatus();
+
+    eventSource = openAutomatedPricingStream({ apiUrl: API_URL, jobId: autoPricingJobId });
+
+    eventSource.addEventListener("row", (event) => {
+      const payload = JSON.parse(event.data || "{}");
+      if (!payload.row) {
+        return;
       }
+      setAutoPricingRows((previousRows) => [...previousRows, payload.row]);
+      setAutoPricingStatus("running");
+      setAutoPricingProgress({
+        processed: payload.processed_items || 0,
+        total: payload.total_items || 0
+      });
+    });
+
+    eventSource.addEventListener("done", (event) => {
+      const payload = JSON.parse(event.data || "{}");
+      setAutoPricingStatus("completed");
+      setAutoPricingProgress({
+        processed: payload.processed_items || 0,
+        total: payload.total_items || 0
+      });
+      eventSource?.close();
+    });
+
+    eventSource.onerror = () => {
+      if (!isActive) {
+        return;
+      }
+      setAutoPricingError("Live stream interrupted. Showing latest processed rows.");
+      eventSource?.close();
+    };
+
+    return () => {
+      isActive = false;
+      eventSource?.close();
     };
   }, [activePage, autoPricingJobId]);
 

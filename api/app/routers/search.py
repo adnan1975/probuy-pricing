@@ -1,6 +1,9 @@
+import asyncio
+import json
 import logging
 
 from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi.responses import StreamingResponse
 
 from app.models.normalized_result import (
     AutomatedPricingJobStartResponse,
@@ -124,3 +127,48 @@ async def automated_pricing_status(job_id: str = Path(..., min_length=1)) -> Aut
         rows=[row.__dict__ for row in job.rows],
         errors=job.errors,
     )
+
+
+@router.get("/automated-pricing/{job_id}/stream")
+async def automated_pricing_stream(job_id: str = Path(..., min_length=1)) -> StreamingResponse:
+    logger.info("Received /automated-pricing/{job_id}/stream request", extra={"job_id": job_id})
+    job = automated_pricing_service.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    async def event_generator():
+        last_index = 0
+        while True:
+            live_job = automated_pricing_service.get_job(job_id)
+            if live_job is None:
+                yield "event: error\ndata: Job not found\n\n"
+                break
+
+            while last_index < len(live_job.rows):
+                row = live_job.rows[last_index]
+                payload = json.dumps(
+                    {
+                        "type": "row",
+                        "processed_items": live_job.processed_items,
+                        "total_items": live_job.total_items,
+                        "row": row.__dict__,
+                    }
+                )
+                yield f"event: row\ndata: {payload}\n\n"
+                last_index += 1
+
+            if live_job.status == "completed":
+                final_payload = json.dumps(
+                    {
+                        "type": "done",
+                        "processed_items": live_job.processed_items,
+                        "total_items": live_job.total_items,
+                        "errors": live_job.errors,
+                    }
+                )
+                yield f"event: done\ndata: {final_payload}\n\n"
+                break
+
+            await asyncio.sleep(0.4)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")

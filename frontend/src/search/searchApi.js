@@ -50,3 +50,7 @@ export async function fetchAutomatedPricingStatus({ apiUrl, jobId, signal }) {
   }
   return response.json();
 }
+
+export function openAutomatedPricingStream({ apiUrl, jobId }) {
+  return new EventSource(`${apiUrl}/automated-pricing/${jobId}/stream`);
+}
