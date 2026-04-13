@@ -68,3 +68,29 @@ class CatalogItem(BaseModel):
     distributor_cost: float | None = None
     unit: str | None = None
     manufacturer: str | None = None
+
+
+class AutomatedPricingRow(BaseModel):
+    item_name: str
+    model: str
+    description: str
+    kms_tools_price: float | None = None
+    other_connector_price: float | None = None
+    final_price: float | None = None
+    published_to_shopify: bool = True
+    published_to_method: bool = True
+
+
+class AutomatedPricingJobStartResponse(BaseModel):
+    job_id: str
+    status: str
+    total_items: int
+
+
+class AutomatedPricingJobStatusResponse(BaseModel):
+    job_id: str
+    status: str
+    total_items: int
+    processed_items: int
+    rows: list[AutomatedPricingRow] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
