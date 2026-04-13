@@ -28,7 +28,7 @@ export const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 export const expectedSources = [
   "SCN International",
   "KMS Tools",
-  "White Cap",
+  "Canada Welding Supply",
   "Canadian Tire",
   "Amazon.ca",
   "Home Depot"
@@ -37,7 +37,7 @@ export const expectedSources = [
 /** @type {{source: string, endpoint: string}[]} */
 export const detailConnectorConfigs = [
   { source: "KMS Tools", endpoint: "kms_tools" },
-  { source: "White Cap", endpoint: "white_cap" },
+  { source: "Canada Welding Supply", endpoint: "canada_welding_supply" },
   { source: "Canadian Tire", endpoint: "canadian_tire" },
   { source: "Home Depot", endpoint: "home_depot" },
   { source: "Amazon.ca", endpoint: "amazon_ca" }

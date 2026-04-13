@@ -8,7 +8,7 @@ from app.connectors.canadiantire_connector import CanadianTireConnector
 from app.connectors.homedepot_connector import HomeDepotConnector
 from app.connectors.kms_connector import KMSToolsConnector
 from app.connectors.scn_connector import SCNConnector
-from app.connectors.whitecap_connector import WhiteCapConnector
+from app.connectors.canadaweldingsupply_connector import CanadaWeldingSupplyConnector
 from app.models.normalized_result import NormalizedResult, SearchResponse
 from app.services.analysis_service import AnalysisService
 from app.services.matching_service import MatchingService
@@ -25,7 +25,7 @@ class SearchService:
         self.primary_connectors = primary_connectors or connectors or [SCNConnector()]
         self.secondary_connectors = secondary_connectors or [
             KMSToolsConnector(),
-            WhiteCapConnector(),
+            CanadaWeldingSupplyConnector(),
             CanadianTireConnector(),
             AmazonCAConnector(),
             HomeDepotConnector(),

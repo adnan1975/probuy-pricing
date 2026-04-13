@@ -7,13 +7,13 @@ MOCK_PRODUCTS = {
         "title": "DEWALT FLEXVOLT 60V MAX Grinder (Tool Only)",
         "sku": "DCG418B",
         "links": {
-            "white_cap": "https://www.whitecap.com/p/dewalt-flexvolt-grinder-dcg418b",
+            "canada_welding_supply": "https://canadaweldingsupply.ca/products/dewalt-flexvolt-60v-max-angle-grinder-tool-only-dcg418b",
             "kms_tools": "https://www.kmstools.com/dewalt-flexvolt-60v-grinder-dcg418b",
             "canadian_tire": "https://www.canadiantire.ca/en/pdp/dewalt-flexvolt-grinder-dcg418b.html",
             "home_depot": "https://www.homedepot.ca/product/dewalt-flexvolt-60v-grinder/1000000001",
         },
         "prices": {
-            "white_cap": 339.0,
+            "canada_welding_supply": 339.0,
             "kms_tools": 329.99,
             "canadian_tire": 349.99,
             "home_depot": 344.0,
@@ -24,13 +24,13 @@ MOCK_PRODUCTS = {
         "title": "3M SecureFit SF201AF Safety Glasses, Clear Anti-Fog",
         "sku": "SF201AF",
         "links": {
-            "white_cap": "https://www.whitecap.com/p/3m-securefit-sf201af",
+            "canada_welding_supply": "https://canadaweldingsupply.ca/products/3m-securefit-safety-glasses-sf201af",
             "kms_tools": "https://www.kmstools.com/3m-securefit-sf201af",
             "canadian_tire": "https://www.canadiantire.ca/en/pdp/3m-securefit-sf201af.html",
             "home_depot": "https://www.homedepot.ca/product/3m-securefit-sf201af/1000000002",
         },
         "prices": {
-            "white_cap": 14.25,
+            "canada_welding_supply": 14.25,
             "kms_tools": 12.99,
             "canadian_tire": 15.49,
             "home_depot": 13.87,
@@ -56,7 +56,7 @@ def build_mock_result(query: str, source: str, source_label: str) -> list[Normal
     return [
         NormalizedResult(
             source=source_label,
-            source_type="distributor" if source == "white_cap" else "retail",
+            source_type="distributor" if source == "canada_welding_supply" else "retail",
             title=product["title"],
             price_text=f"${price_value:,.2f}",
             price_value=price_value,
@@ -66,6 +66,6 @@ def build_mock_result(query: str, source: str, source_label: str) -> list[Normal
             product_url=product["links"][source],
             image_url=None,
             confidence="High",
-            score=98 if source == "white_cap" else 95,
+            score=98 if source == "canada_welding_supply" else 95,
         )
     ]
