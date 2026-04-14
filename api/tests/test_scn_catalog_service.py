@@ -166,6 +166,7 @@ class SCNConnectorTests(unittest.IsolatedAsyncioTestCase):
                 "description": "Item B",
                 "list_price": None,
                 "distributor_cost": 5.0,
+                "scn_image": "https://cdn.example.com/b1.jpg",
                 "unit": "EA",
                 "manufacturer": "BrandX",
                 "warehouse": "Warehouse 7",
@@ -185,6 +186,7 @@ class SCNConnectorTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(rows[0].price_value)
             self.assertEqual(rows[0].price_text, "Price unavailable from SCN list")
             self.assertEqual(rows[0].location, "Warehouse 7")
+            self.assertEqual(rows[0].image_url, "https://cdn.example.com/b1.jpg")
         finally:
             settings.supabase_url = old_url
             settings.supabase_service_role_key = old_key
@@ -200,6 +202,7 @@ class SCNBatchIngestServiceTests(unittest.TestCase):
                 description="DEWALT grinder",
                 list_price=339.0,
                 distributor_cost=299.0,
+                scn_image="https://cdn.example.com/dcg418b.jpg",
                 unit="EA",
                 manufacturer=None,
                 warehouse=None,
@@ -213,6 +216,7 @@ class SCNBatchIngestServiceTests(unittest.TestCase):
         self.assertEqual(payload[0]["manufacturer"], "")
         self.assertEqual(payload[0]["warehouse"], "")
         self.assertEqual(payload[0]["manufacturer_model"], "")
+        self.assertEqual(payload[0]["scn_image"], "https://cdn.example.com/dcg418b.jpg")
 
     def test_normalize_ingest_payload_skips_rows_without_model(self):
         service = SCNBatchIngestService()
@@ -223,6 +227,7 @@ class SCNBatchIngestServiceTests(unittest.TestCase):
                 description="Description only row",
                 list_price=None,
                 distributor_cost=None,
+                scn_image=None,
                 unit=None,
                 manufacturer="Acme",
                 warehouse="Main",
