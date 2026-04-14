@@ -22,6 +22,7 @@ class SCNItem:
     description: str
     list_price: float | None
     distributor_cost: float | None
+    scn_image: str | None
     unit: str | None
     manufacturer: str | None
     warehouse: str | None
@@ -148,7 +149,10 @@ class SCNCatalogService:
         self._supabase_attempted = True
         endpoint = f"{settings.supabase_url}/rest/v1/{settings.scn_table}"
         timeout_seconds = 15
-        select_clause = "model,manufacturer_model,description,list_price,distributor_cost,unit,manufacturer,warehouse"
+        select_clause = (
+            "model,manufacturer_model,description,list_price,distributor_cost,scn_image,"
+            "unit,manufacturer,warehouse"
+        )
         page_size = 1000
         params = {
             "select": select_clause,
@@ -210,6 +214,7 @@ class SCNCatalogService:
                         description=str(row.get("description") or ""),
                         list_price=self._parse_decimal(row.get("list_price")),
                         distributor_cost=self._parse_decimal(row.get("distributor_cost")),
+                        scn_image=str(row.get("scn_image")) if row.get("scn_image") else None,
                         unit=str(row.get("unit")) if row.get("unit") else None,
                         manufacturer=str(row.get("manufacturer")) if row.get("manufacturer") else None,
                         warehouse=(
@@ -268,6 +273,7 @@ class SCNCatalogService:
                         description=description or model or "",
                         list_price=self._parse_decimal(row.get("list_price")),
                         distributor_cost=self._parse_decimal(row.get("distributor_cost")),
+                        scn_image=row.get("scn_image") or None,
                         unit=row.get("unit") or None,
                         manufacturer=row.get("manufacturer") or None,
                         warehouse=row.get("warehouse") or None,
@@ -289,6 +295,9 @@ class SCNCatalogService:
             "distributor_cost_cout_distributeur": "distributor_cost",
             "unit_of_sale": "unit",
             "unite_de_vente": "unit",
+            "scn_image": "scn_image",
+            "image_url": "scn_image",
+            "image": "scn_image",
             "manufacturer": "manufacturer",
             "fabricant": "manufacturer",
             "warehouse_location": "warehouse",

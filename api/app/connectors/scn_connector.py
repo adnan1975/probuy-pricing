@@ -42,7 +42,7 @@ class SCNConnector(BaseConnector):
                     availability="Catalog Item",
                     location=item.warehouse,
                     product_url=None,
-                    image_url=None,
+                    image_url=item.scn_image,
                     confidence="High",
                     score=88 if price_value is not None else 72,
                     why=why,
