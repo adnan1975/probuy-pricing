@@ -21,8 +21,7 @@ function buildWebpTimestampFallbackUrl(imageUrl) {
   if (!imageUrl) return "";
   const [baseWithPath, hashFragment = ""] = imageUrl.split("#");
   const [basePath] = baseWithPath.split("?");
-  const oneDayInSeconds = 24 * 60 * 60;
-  const unixTimestamp = Math.floor(Date.now() / 1000) - oneDayInSeconds;
+  const unixTimestamp = 1776062528;
   const hashSuffix = hashFragment ? `#${hashFragment}` : "";
   return `${basePath}?${unixTimestamp}${hashSuffix}`;
 }
