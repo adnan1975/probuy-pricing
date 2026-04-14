@@ -10,10 +10,10 @@ if str(API_ROOT) not in sys.path:
     sys.path.insert(0, str(API_ROOT))
 
 from app.connectors.canadiantire_connector import CanadianTireConnector
+from app.connectors.canadaweldingsupply_connector import CanadaWeldingSupplyConnector
 from app.connectors.homedepot_connector import HomeDepotConnector
 from app.connectors.kms_connector import KMSConnector
 from app.connectors.scn_connector import SCNConnector
-from app.connectors.whitecap_connector import WhiteCapConnector
 from app.models.normalized_result import NormalizedResult
 from app.services.search_service import SearchService
 
@@ -97,7 +97,7 @@ async def find_first_match(min_score: int = 80, limit: int | None = None) -> int
     scn_connector = SCNConnector()
     search_service = SearchService(
         connectors=[
-            WhiteCapConnector(),
+            CanadaWeldingSupplyConnector(),
             KMSConnector(),
             CanadianTireConnector(),
             HomeDepotConnector(),
