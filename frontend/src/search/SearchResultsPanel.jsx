@@ -1,6 +1,60 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { detailConnectorConfigs, PAGE_SIZE_OPTIONS } from "./constants";
 import loaderImage from "../assets/results-loader.svg";
+
+function buildWebpFallbackUrl(imageUrl) {
+  if (!imageUrl) return "";
+  const [baseWithPath, hashFragment = ""] = imageUrl.split("#");
+  const [basePath, queryString = ""] = baseWithPath.split("?");
+
+  if (!/\.jpe?g$/i.test(basePath)) {
+    return "";
+  }
+
+  const webpPath = basePath.replace(/\.jpe?g$/i, ".webp");
+  const querySuffix = queryString ? `?${queryString}` : "";
+  const hashSuffix = hashFragment ? `#${hashFragment}` : "";
+  return `${webpPath}${querySuffix}${hashSuffix}`;
+}
+
+function ProductImage({ src, alt }) {
+  const [imageSrc, setImageSrc] = useState(src);
+  const [didAttemptWebp, setDidAttemptWebp] = useState(false);
+
+  if (!imageSrc) {
+    return (
+      <div className="result-card-image-placeholder" aria-label="No image available">
+        No image
+      </div>
+    );
+  }
+
+  const handleImageError = () => {
+    if (didAttemptWebp) {
+      setImageSrc("");
+      return;
+    }
+
+    const webpFallback = buildWebpFallbackUrl(imageSrc);
+    if (webpFallback && webpFallback !== imageSrc) {
+      setImageSrc(webpFallback);
+      setDidAttemptWebp(true);
+      return;
+    }
+
+    setImageSrc("");
+  };
+
+  return (
+    <img
+      className="result-card-image"
+      src={imageSrc}
+      alt={alt}
+      loading="lazy"
+      onError={handleImageError}
+    />
+  );
+}
 
 export function SearchResultsPanel({
   apiError,
@@ -150,18 +204,7 @@ export function SearchResultsPanel({
             return (
               <div className={`result-card ${isBestMatch ? "best-match-card" : ""}`} key={rowKey}>
                 <div className="result-card-image-grid">
-                  {productImage ? (
-                    <img
-                      className="result-card-image"
-                      src={productImage}
-                      alt={item.title || "Product image"}
-                      loading="lazy"
-                    />
-                  ) : (
-                    <div className="result-card-image-placeholder" aria-label="No image available">
-                      No image
-                    </div>
-                  )}
+                  <ProductImage key={productImage || "no-image"} src={productImage} alt={item.title || "Product image"} />
                 </div>
 
                 <div className="result-card-header">
