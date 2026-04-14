@@ -5,8 +5,8 @@ import { fetchAutomatedPricingStatus, fetchStep1Results, openAutomatedPricingStr
 import { SearchResultsPanel } from "./search/SearchResultsPanel";
 import { useFilterState } from "./search/useFilterState";
 import { useProductDetailExpansion } from "./search/useProductDetailExpansion";
+import { useSearchHistoryTypeahead } from "./search/useSearchHistoryTypeahead";
 import { useSearchInput } from "./search/useSearchInput";
-import { getSearchHistory, saveSearchTerm } from "./search/searchHistoryService";
 
 const topMenuItems = ["Dashboard", "Pricing", "Automated Pricing Test", "Settings"];
 
@@ -40,9 +40,15 @@ function App() {
   const [autoPricingStatus, setAutoPricingStatus] = useState("idle");
   const [autoPricingError, setAutoPricingError] = useState("");
   const [autoPricingProgress, setAutoPricingProgress] = useState({ processed: 0, total: 0 });
-  const [searchHistory, setSearchHistory] = useState([]);
-  const [isSuggestionOpen, setIsSuggestionOpen] = useState(false);
-  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
+  const {
+    searchHistory,
+    searchSuggestions,
+    setIsSuggestionOpen,
+    activeSuggestionIndex,
+    setActiveSuggestionIndex,
+    showSuggestions,
+    saveSuccessfulSearch
+  } = useSearchHistoryTypeahead(query);
 
   const {
     detailsState,
@@ -57,10 +63,6 @@ function App() {
     visibleResults: results,
     trimmedQuery
   });
-
-  useEffect(() => {
-    setSearchHistory(getSearchHistory());
-  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -92,7 +94,7 @@ function App() {
         const scnResults = Array.isArray(step1Data.results) ? step1Data.results : [];
         setResults(scnResults);
         if (scnResults.length > 0) {
-          setSearchHistory(saveSearchTerm(trimmedQuery));
+          saveSuccessfulSearch(trimmedQuery);
         }
         setDetailsState({});
         setAnalysis(step1Data.analysis || null);
@@ -118,7 +120,7 @@ function App() {
       loadResults();
     }
     return () => controller.abort();
-  }, [activePage, canSearch, page, pageSize, setDetailsState, trimmedQuery]);
+  }, [activePage, canSearch, page, pageSize, saveSuccessfulSearch, setDetailsState, trimmedQuery]);
 
   const visibleResults = useMemo(() => {
     const parseOptionalNumber = (value) => {
@@ -172,31 +174,6 @@ function App() {
     const units = new Set(results.map((item) => (item.unit || "").trim()).filter(Boolean));
     return ["all", ...Array.from(units).sort((a, b) => a.localeCompare(b))];
   }, [results]);
-
-
-  const searchSuggestions = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) {
-      return [];
-    }
-
-    const prefixMatches = [];
-    const substringMatches = [];
-
-    searchHistory.forEach((term) => {
-      const normalizedTerm = term.toLowerCase();
-      if (normalizedTerm.startsWith(normalizedQuery)) {
-        prefixMatches.push(term);
-      } else if (normalizedTerm.includes(normalizedQuery)) {
-        substringMatches.push(term);
-      }
-    });
-
-    return [...prefixMatches, ...substringMatches];
-  }, [query, searchHistory]);
-
-  const showSuggestions = isSuggestionOpen && query.trim().length > 0 && searchSuggestions.length > 0;
-
   function formatSuggestedPrice(item, rowIndex) {
     const relatedOffers = relatedOffersByRow[rowIndex] || [];
     const pricedValues = [item, ...relatedOffers]
