@@ -10,7 +10,7 @@ from app.connectors.secondary_scrapy_connector import SecondaryScrapyConnector
 from app.models.normalized_result import NormalizedResult
 
 
-class KMSToolsConnector(SecondaryScrapyConnector):
+class KMSConnector(SecondaryScrapyConnector):
     source = "kms_tools"
     source_label = "KMS Tools"
     source_type = "retail"
