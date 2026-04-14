@@ -133,6 +133,7 @@ export function SearchResultsPanel({
             const relatedOffers = relatedOffersByRow[idx] || [];
             const rowDetails = detailsState[String(idx)] || {};
             const isExpanded = Boolean(expandedRows[idx]);
+            const productImage = typeof item.scn_image === "string" ? item.scn_image.trim() : "";
             const metaRows = [
               [
                 { label: "Brand", value: item.brand || "N/A" },
@@ -140,15 +141,29 @@ export function SearchResultsPanel({
               ],
               [
                 { label: "SKU", value: item.sku || "N/A" },
-                { label: "Availability", value: item.availability || "Unknown" }
+                { label: "Distributor Cost", value: formatCurrency(item.distributor_cost) },
               ],
               [
-                { label: "Distributor Cost", value: formatCurrency(item.distributor_cost) },
                 { label: "Warehouse", value: item.location || item.warehouse_location || item.warehouse || "N/A" }
               ]
             ];
             return (
               <div className={`result-card ${isBestMatch ? "best-match-card" : ""}`} key={rowKey}>
+                <div className="result-card-image-grid">
+                  {productImage ? (
+                    <img
+                      className="result-card-image"
+                      src={productImage}
+                      alt={item.title || "Product image"}
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="result-card-image-placeholder" aria-label="No image available">
+                      No image
+                    </div>
+                  )}
+                </div>
+
                 <div className="result-card-header">
                   <div className="result-card-rank">
                     #{rank}
