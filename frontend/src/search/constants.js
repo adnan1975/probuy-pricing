@@ -13,6 +13,7 @@
  * @property {number} [price_value]
  * @property {string} [price_text]
  * @property {string} [availability]
+ * @property {string} [scn_image]
  * @property {number} [suggested_price]
  * @property {string} [warehouse]
  * @property {string} [warehouse_location]
