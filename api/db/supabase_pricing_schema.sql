@@ -6,6 +6,7 @@ create table if not exists pricing.scn_pricing (
   description text not null,
   list_price numeric(12,2),
   distributor_cost numeric(12,2),
+  scn_image text,
   unit text,
   manufacturer text not null default '',
   warehouse text not null default '',
@@ -14,7 +15,8 @@ create table if not exists pricing.scn_pricing (
 
 alter table pricing.scn_pricing
   add column if not exists warehouse text,
-  add column if not exists manufacturer_model text;
+  add column if not exists manufacturer_model text,
+  add column if not exists scn_image text;
 
 update pricing.scn_pricing
 set manufacturer = coalesce(manufacturer, ''),
