@@ -34,6 +34,11 @@ Set these before running the Supabase ingest script:
 ```bash
 export SUPABASE_URL="https://<project-ref>.supabase.co"
 export SUPABASE_SERVICE_ROLE_KEY="<service-role-key>"
+```ps
+$env:SUPABASE_URL="https://<project-ref>.supabase.co"
+$env:SUPABASE_SERVICE_ROLE_KEY="https://<project-ref>.supabase.co"
+ =""
+
 ```
 
 Optional variables:

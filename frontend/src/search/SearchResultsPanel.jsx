@@ -13,7 +13,7 @@ function buildWebpFallbackUrl(imageUrl) {
 
   const webpPath = basePath.replace(/\.jpe?g$/i, ".webp");
   const unixTimestamp = Math.floor(Date.now() / 1000);
-  const timestampParam = `ts=${unixTimestamp}`;
+  const timestampParam = `${unixTimestamp}`;
   const querySuffix = queryString ? `?${queryString}&${timestampParam}` : `?${timestampParam}`;
   const hashSuffix = hashFragment ? `#${hashFragment}` : "";
   return `${webpPath}${querySuffix}${hashSuffix}`;
