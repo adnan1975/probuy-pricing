@@ -12,7 +12,7 @@ const topMenuItems = ["Dashboard", "Pricing", "Automated Pricing Test", "Setting
 
 function App() {
   const [activePage, setActivePage] = useState("Pricing");
-  const { query, setQuery, trimmedQuery, canSearch } = useSearchInput();
+  const { query, setQuery, trimmedQuery, debouncedTrimmedQuery, canSearch } = useSearchInput();
   const {
     page,
     setPage,
@@ -31,6 +31,7 @@ function App() {
   const [analysis, setAnalysis] = useState(null);
   const [perSourceErrors, setPerSourceErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const [hasCompletedSearchRequest, setHasCompletedSearchRequest] = useState(false);
   const [apiError, setApiError] = useState("");
   const [totalPages, setTotalPages] = useState(0);
@@ -66,6 +67,10 @@ function App() {
   });
 
   useEffect(() => {
+    setIsTyping(trimmedQuery !== debouncedTrimmedQuery);
+  }, [debouncedTrimmedQuery, trimmedQuery]);
+
+  useEffect(() => {
     const controller = new AbortController();
 
     async function loadResults() {
@@ -87,7 +92,7 @@ function App() {
       try {
         const step1Data = await fetchStep1Results({
           apiUrl: API_URL,
-          query: trimmedQuery,
+          query: debouncedTrimmedQuery,
           page,
           pageSize,
           signal: controller.signal
@@ -96,7 +101,7 @@ function App() {
         const scnResults = Array.isArray(step1Data.results) ? step1Data.results : [];
         setResults(scnResults);
         if (scnResults.length > 0) {
-          saveSuccessfulSearch(trimmedQuery);
+          saveSuccessfulSearch(debouncedTrimmedQuery);
         }
         setDetailsState({});
         setAnalysis(step1Data.analysis || null);
@@ -124,7 +129,7 @@ function App() {
       loadResults();
     }
     return () => controller.abort();
-  }, [activePage, canSearch, page, pageSize, saveSuccessfulSearch, setDetailsState, trimmedQuery]);
+  }, [activePage, canSearch, debouncedTrimmedQuery, page, pageSize, saveSuccessfulSearch, setDetailsState]);
 
   const visibleResults = useMemo(() => {
     const parseOptionalNumber = (value) => {
@@ -607,6 +612,10 @@ function App() {
               <div className="pricing-content">
                 {!canSearch && (
                   <div className="info-box muted-box">Type a search term to load results.</div>
+                )}
+
+                {isTyping && canSearch && (
+                  <div className="info-box muted-box">Waiting for typing to pause…</div>
                 )}
 
                 <div className="summary-grid">
