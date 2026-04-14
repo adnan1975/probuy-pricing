@@ -5,6 +5,7 @@ import loaderImage from "../assets/results-loader.svg";
 export function SearchResultsPanel({
   apiError,
   loading,
+  activeQuery = "",
   canSearch,
   hasActiveSearch = false,
   hasCompletedSearchRequest = false,
@@ -25,6 +26,8 @@ export function SearchResultsPanel({
   onRetryConnector
 }) {
   const hasVisibleResults = visibleResults.length > 0;
+  const loadingQueryLabel = activeQuery || "your query";
+  const skeletonRows = Array.from({ length: 6 }, (_, index) => index);
 
   return (
     <div className="panel">
@@ -41,9 +44,9 @@ export function SearchResultsPanel({
       {hasActiveSearch && <h2>Items found</h2>}
       {apiError && <div className="error-box"><strong>API error:</strong> {apiError}</div>}
       {loading && (
-        <div className="info-box inline-loader">
+        <div className="info-box inline-loader" aria-live="polite">
           <img src={loaderImage} alt="Loading results" className="results-loader-image" />
-          Loading primary connector pricing...
+          Searching for "{loadingQueryLabel}"...
         </div>
       )}
       {!loading && !apiError && canSearch && hasCompletedSearchRequest && !hasVisibleResults && (
@@ -81,8 +84,30 @@ export function SearchResultsPanel({
         </div>
       )}
 
+      {loading && (
+        <div className="results-grid" aria-busy="true" aria-live="polite" aria-label={`Loading results for ${loadingQueryLabel}`}>
+          {skeletonRows.map((row) => (
+            <div className="result-card result-card-skeleton" key={`skeleton-${row}`} aria-hidden="true">
+              <div className="skeleton-line skeleton-line-short" />
+              <div className="skeleton-line skeleton-line-title" />
+              <div className="skeleton-line skeleton-line-price" />
+              <div className="result-card-meta">
+                <div className="result-card-meta-item skeleton-block" />
+                <div className="result-card-meta-item skeleton-block" />
+                <div className="result-card-meta-item skeleton-block" />
+                <div className="result-card-meta-item skeleton-block" />
+              </div>
+              <div className="result-card-actions">
+                <div className="skeleton-line skeleton-line-button" />
+                <div className="skeleton-line skeleton-line-button" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {hasVisibleResults && (
-        <div className="results-grid">
+        <div className="results-grid" aria-busy={loading ? "true" : "false"}>
           {visibleResults.map((item, idx) => {
             const rank = (page - 1) * pageSize + idx + 1;
             const isBestMatch = rank === 1;
