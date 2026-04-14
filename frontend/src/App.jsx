@@ -628,6 +628,7 @@ function App() {
                 <SearchResultsPanel
                   apiError={apiError}
                   loading={loading}
+                  activeQuery={debouncedTrimmedQuery}
                   canSearch={canSearch}
                   hasActiveSearch={canSearch}
                   hasCompletedSearchRequest={hasCompletedSearchRequest}
@@ -642,11 +643,11 @@ function App() {
                   detailsState={detailsState}
                   expandedRows={expandedRows}
                   relatedOffersByRow={relatedOffersByRow}
-              formatCurrency={formatCurrency}
-              formatSuggestedPrice={formatSuggestedPrice}
-              onToggleDetails={toggleDetails}
-              onRetryConnector={retryDetailsForConnector}
-            />
+                  formatCurrency={formatCurrency}
+                  formatSuggestedPrice={formatSuggestedPrice}
+                  onToggleDetails={toggleDetails}
+                  onRetryConnector={retryDetailsForConnector}
+                />
 
                 {Object.keys(perSourceErrors).length > 0 && (
                   <div className="panel">
