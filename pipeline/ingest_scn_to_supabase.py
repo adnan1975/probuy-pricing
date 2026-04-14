@@ -34,10 +34,12 @@ OUTPUT_COLUMNS = [
     "description",
     "list_price",
     "distributor_cost",
+    "scn_image",
     "unit",
     "manufacturer",
     "warehouse",
 ]
+DEFAULT_SCN_IMAGE_BASE_URL = "https://www.scnindustrial.com/images/xlarge"
 
 LOGGER = logging.getLogger(__name__)
 
@@ -71,6 +73,14 @@ def _find_column(fieldnames: list[str], aliases: tuple[str, ...], file_path: Pat
     raise ValueError(
         f"Could not find any of columns {aliases} in {file_path}. Available columns: {fieldnames}"
     )
+
+
+def _find_optional_column(fieldnames: list[str], aliases: tuple[str, ...]) -> str | None:
+    by_normalized = {normalize_key(name): name for name in fieldnames if name}
+    for alias in aliases:
+        if alias in by_normalized:
+            return by_normalized[alias]
+    return None
 
 
 def _resolve_content_csv(content_csv: Path) -> Path:
@@ -113,15 +123,23 @@ def read_content_product_map(content_csv: Path) -> tuple[dict[str, dict[str, str
             ("producttitle", "product_title", "english_description", "description"),
             content_csv,
         )
+        image_main_column = _find_optional_column(
+            reader.fieldnames,
+            ("image_main", "imagemain", "imagefilename", "image_file", "image"),
+        )
 
         product_by_sku: dict[str, dict[str, str]] = {}
         product_by_manufacturer_model: dict[str, dict[str, str]] = {}
         for row in reader:
+            sku = _coerce_text(row.get(prod_column))
+            image_main = _coerce_text(row.get(image_main_column)) if image_main_column else ""
             product = {
-                "sku": _coerce_text(row.get(prod_column)),
+                "sku": sku,
                 "manufacturer": _coerce_text(row.get(brand_column)),
                 "manufacturer_model": _coerce_text(row.get(manufacturer_number_column)),
                 "title": _coerce_text(row.get(product_title_column)),
+                "image_main": image_main,
+                "scn_image": _build_scn_image_url(image_main=image_main, prod=sku),
             }
             sku_key = normalize_model(product["sku"])
             manufacturer_model_key = normalize_model(product["manufacturer_model"])
@@ -149,6 +167,26 @@ def read_content_product_map(content_csv: Path) -> tuple[dict[str, dict[str, str
 
 def _coerce_text(value: object) -> str:
     return str(value or "").strip()
+
+
+def _sanitize_path_component(value: str) -> str:
+    cleaned = _coerce_text(value).replace("\\", "/")
+    cleaned = cleaned.split("/")[-1]
+    return re.sub(r"[^A-Za-z0-9._-]+", "", cleaned)
+
+
+def _build_scn_image_url(*, image_main: str, prod: str) -> str | None:
+    sanitized_prod = _sanitize_path_component(prod)
+    sanitized_image = _sanitize_path_component(image_main)
+    if not sanitized_prod or not sanitized_image:
+        return None
+
+    if "." not in Path(sanitized_image).name:
+        sanitized_image = f"{sanitized_image}.jpg"
+
+    subdirectory = sanitized_prod[0].lower()
+    base_url = DEFAULT_SCN_IMAGE_BASE_URL.rstrip("/")
+    return f"{base_url}/{subdirectory}/{sanitized_image}"
 
 
 def _is_missing(value: object) -> bool:
@@ -291,6 +329,7 @@ def generate_matched_scn_csv(content_csv: Path, pricing_xlsx: Path, output_csv: 
                         "description": description,
                         "list_price": list_price,
                         "distributor_cost": distributor_cost,
+                        "scn_image": _coerce_text(matched_product.get("scn_image")),
                         "unit": unit,
                         "manufacturer": manufacturer,
                         "warehouse": warehouse,
