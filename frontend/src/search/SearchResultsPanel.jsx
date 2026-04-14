@@ -17,6 +17,22 @@ function buildWebpFallbackUrl(imageUrl) {
   return `${webpPath}${querySuffix}${hashSuffix}`;
 }
 
+function buildQuestionMarkFallbackUrl(imageUrl) {
+  if (!imageUrl) return "";
+  const [baseWithPath, hashFragment = ""] = imageUrl.split("#");
+  const hashSuffix = hashFragment ? `#${hashFragment}` : "";
+
+  if (baseWithPath.endsWith("?") || baseWithPath.endsWith("&")) {
+    return `${baseWithPath}${hashSuffix}`;
+  }
+
+  if (baseWithPath.includes("?")) {
+    return `${baseWithPath}&${hashSuffix}`;
+  }
+
+  return `${baseWithPath}?${hashSuffix}`;
+}
+
 function buildFolderVariantUrl(imageUrl, targetFolder) {
   if (!imageUrl) return "";
   const [baseWithPath, hashFragment = ""] = imageUrl.split("#");
@@ -38,10 +54,12 @@ function ProductImage({ src, alt }) {
   const fallbackSequence = useMemo(() => {
     const largeUrl = buildFolderVariantUrl(src, "large");
     const largeWebpUrl = buildWebpFallbackUrl(largeUrl);
+    const largeWebpQuestionUrl = buildQuestionMarkFallbackUrl(largeWebpUrl);
     const xlargeUrl = buildFolderVariantUrl(src, "xlarge") || src;
     const xlargeWebpUrl = buildWebpFallbackUrl(xlargeUrl);
+    const xlargeWebpQuestionUrl = buildQuestionMarkFallbackUrl(xlargeWebpUrl);
 
-    return [largeUrl, largeWebpUrl, xlargeUrl, xlargeWebpUrl].filter(Boolean);
+    return [largeUrl, largeWebpUrl, largeWebpQuestionUrl, xlargeUrl, xlargeWebpUrl, xlargeWebpQuestionUrl].filter(Boolean);
   }, [src]);
 
   if (!imageSrc) {
