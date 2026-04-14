@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { detailConnectorConfigs, PAGE_SIZE_OPTIONS } from "./constants";
 import loaderImage from "../assets/results-loader.svg";
 
@@ -17,9 +17,32 @@ function buildWebpFallbackUrl(imageUrl) {
   return `${webpPath}${querySuffix}${hashSuffix}`;
 }
 
+function buildFolderVariantUrl(imageUrl, targetFolder) {
+  if (!imageUrl) return "";
+  const [baseWithPath, hashFragment = ""] = imageUrl.split("#");
+  const [basePath, queryString = ""] = baseWithPath.split("?");
+  const replacedPath = basePath.replace(/\/xlarge\//i, `/${targetFolder}/`);
+
+  if (replacedPath === basePath) {
+    return "";
+  }
+
+  const querySuffix = queryString ? `?${queryString}` : "";
+  const hashSuffix = hashFragment ? `#${hashFragment}` : "";
+  return `${replacedPath}${querySuffix}${hashSuffix}`;
+}
+
 function ProductImage({ src, alt }) {
   const [imageSrc, setImageSrc] = useState(src);
-  const [didAttemptWebp, setDidAttemptWebp] = useState(false);
+  const [fallbackIndex, setFallbackIndex] = useState(0);
+  const fallbackSequence = useMemo(() => {
+    const largerUrl = buildFolderVariantUrl(src, "larger");
+    const largerWebpUrl = buildWebpFallbackUrl(largerUrl);
+    const largeUrl = buildFolderVariantUrl(src, "large");
+    const largeWebpUrl = buildWebpFallbackUrl(largeUrl);
+
+    return [largerUrl, largerWebpUrl, largeUrl, largeWebpUrl].filter(Boolean);
+  }, [src]);
 
   if (!imageSrc) {
     return (
@@ -30,15 +53,10 @@ function ProductImage({ src, alt }) {
   }
 
   const handleImageError = () => {
-    if (didAttemptWebp) {
-      setImageSrc("");
-      return;
-    }
-
-    const webpFallback = buildWebpFallbackUrl(imageSrc);
-    if (webpFallback && webpFallback !== imageSrc) {
-      setImageSrc(webpFallback);
-      setDidAttemptWebp(true);
+    const nextFallback = fallbackSequence[fallbackIndex];
+    if (nextFallback && nextFallback !== imageSrc) {
+      setImageSrc(nextFallback);
+      setFallbackIndex((currentIndex) => currentIndex + 1);
       return;
     }
 
