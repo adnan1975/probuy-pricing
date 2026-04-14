@@ -6,6 +6,8 @@ export function SearchResultsPanel({
   apiError,
   loading,
   canSearch,
+  hasActiveSearch = false,
+  hasCompletedSearchRequest = false,
   visibleResults,
   analysis,
   totalResults,
@@ -26,7 +28,17 @@ export function SearchResultsPanel({
 
   return (
     <div className="panel">
-      <h2>Items found</h2>
+      {!hasActiveSearch && (
+        <div className="info-box muted-box">
+          <strong>Start a product search</strong>
+          <div>Search by model, manufacturer, SKU, or part number.</div>
+          <div className="search-hint-pills">
+            <span className="pill blue">DEWALT FLEXVOLT grinder DCG418B</span>
+            <span className="pill blue">3M SecureFit SF201AF</span>
+          </div>
+        </div>
+      )}
+      {hasActiveSearch && <h2>Items found</h2>}
       {apiError && <div className="error-box"><strong>API error:</strong> {apiError}</div>}
       {loading && (
         <div className="info-box inline-loader">
@@ -34,7 +46,7 @@ export function SearchResultsPanel({
           Loading primary connector pricing...
         </div>
       )}
-      {!loading && !apiError && canSearch && !hasVisibleResults && (
+      {!loading && !apiError && canSearch && hasCompletedSearchRequest && !hasVisibleResults && (
         <div className="info-box">No connector matches were found for this query.</div>
       )}
       {!loading && !apiError && canSearch && hasVisibleResults && (analysis?.priced_results ?? 0) === 0 && (
