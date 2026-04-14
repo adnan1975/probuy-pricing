@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { detailConnectorConfigs, PAGE_SIZE_OPTIONS } from "./constants";
 import loaderImage from "../assets/results-loader.svg";
 
@@ -17,9 +17,47 @@ function buildWebpFallbackUrl(imageUrl) {
   return `${webpPath}${querySuffix}${hashSuffix}`;
 }
 
+function buildFolderVariantUrl(imageUrl, targetFolder) {
+  if (!imageUrl) return "";
+  const [baseWithPath, hashFragment = ""] = imageUrl.split("#");
+  const [basePath, queryString = ""] = baseWithPath.split("?");
+  const replacedPath = basePath.replace(/\/xlarge\//i, `/${targetFolder}/`);
+
+  if (replacedPath === basePath) {
+    return "";
+  }
+
+  const querySuffix = queryString ? `?${queryString}` : "";
+  const hashSuffix = hashFragment ? `#${hashFragment}` : "";
+  return `${replacedPath}${querySuffix}${hashSuffix}`;
+}
+
+function buildExtensionVariantUrl(imageUrl, targetExtension) {
+  if (!imageUrl) return "";
+  const [baseWithPath, hashFragment = ""] = imageUrl.split("#");
+  const [basePath, queryString = ""] = baseWithPath.split("?");
+
+  if (!/\.(jpe?g|webp)$/i.test(basePath)) {
+    return "";
+  }
+
+  const replacedPath = basePath.replace(/\.(jpe?g|webp)$/i, `.${targetExtension}`);
+  const querySuffix = queryString ? `?${queryString}` : "";
+  const hashSuffix = hashFragment ? `#${hashFragment}` : "";
+  return `${replacedPath}${querySuffix}${hashSuffix}`;
+}
+
 function ProductImage({ src, alt }) {
   const [imageSrc, setImageSrc] = useState(src);
-  const [didAttemptWebp, setDidAttemptWebp] = useState(false);
+  const [fallbackIndex, setFallbackIndex] = useState(0);
+  const fallbackSequence = useMemo(() => {
+    const largeUrl = buildFolderVariantUrl(src, "large");
+    const largeWebpUrl = buildWebpFallbackUrl(largeUrl);
+    const xlargeJpgUrl = buildExtensionVariantUrl(src, "jpg");
+    const xlargeWebpUrl = buildExtensionVariantUrl(src, "webp");
+
+    return [largeUrl, largeWebpUrl, xlargeJpgUrl, xlargeWebpUrl].filter(Boolean);
+  }, [src]);
 
   if (!imageSrc) {
     return (
@@ -30,16 +68,13 @@ function ProductImage({ src, alt }) {
   }
 
   const handleImageError = () => {
-    if (didAttemptWebp) {
-      setImageSrc("");
-      return;
-    }
-
-    const webpFallback = buildWebpFallbackUrl(imageSrc);
-    if (webpFallback && webpFallback !== imageSrc) {
-      setImageSrc(webpFallback);
-      setDidAttemptWebp(true);
-      return;
+    for (let index = fallbackIndex; index < fallbackSequence.length; index += 1) {
+      const candidate = fallbackSequence[index];
+      if (candidate && candidate !== imageSrc) {
+        setImageSrc(candidate);
+        setFallbackIndex(index + 1);
+        return;
+      }
     }
 
     setImageSrc("");
