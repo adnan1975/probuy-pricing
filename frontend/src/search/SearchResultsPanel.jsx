@@ -32,16 +32,31 @@ function buildFolderVariantUrl(imageUrl, targetFolder) {
   return `${replacedPath}${querySuffix}${hashSuffix}`;
 }
 
+function buildExtensionVariantUrl(imageUrl, targetExtension) {
+  if (!imageUrl) return "";
+  const [baseWithPath, hashFragment = ""] = imageUrl.split("#");
+  const [basePath, queryString = ""] = baseWithPath.split("?");
+
+  if (!/\.(jpe?g|webp)$/i.test(basePath)) {
+    return "";
+  }
+
+  const replacedPath = basePath.replace(/\.(jpe?g|webp)$/i, `.${targetExtension}`);
+  const querySuffix = queryString ? `?${queryString}` : "";
+  const hashSuffix = hashFragment ? `#${hashFragment}` : "";
+  return `${replacedPath}${querySuffix}${hashSuffix}`;
+}
+
 function ProductImage({ src, alt }) {
   const [imageSrc, setImageSrc] = useState(src);
   const [fallbackIndex, setFallbackIndex] = useState(0);
   const fallbackSequence = useMemo(() => {
-    const largerUrl = buildFolderVariantUrl(src, "larger");
-    const largerWebpUrl = buildWebpFallbackUrl(largerUrl);
     const largeUrl = buildFolderVariantUrl(src, "large");
     const largeWebpUrl = buildWebpFallbackUrl(largeUrl);
+    const xlargeJpgUrl = buildExtensionVariantUrl(src, "jpg");
+    const xlargeWebpUrl = buildExtensionVariantUrl(src, "webp");
 
-    return [largerUrl, largerWebpUrl, largeUrl, largeWebpUrl].filter(Boolean);
+    return [largeUrl, largeWebpUrl, xlargeJpgUrl, xlargeWebpUrl].filter(Boolean);
   }, [src]);
 
   if (!imageSrc) {
@@ -53,11 +68,13 @@ function ProductImage({ src, alt }) {
   }
 
   const handleImageError = () => {
-    const nextFallback = fallbackSequence[fallbackIndex];
-    if (nextFallback && nextFallback !== imageSrc) {
-      setImageSrc(nextFallback);
-      setFallbackIndex((currentIndex) => currentIndex + 1);
-      return;
+    for (let index = fallbackIndex; index < fallbackSequence.length; index += 1) {
+      const candidate = fallbackSequence[index];
+      if (candidate && candidate !== imageSrc) {
+        setImageSrc(candidate);
+        setFallbackIndex(index + 1);
+        return;
+      }
     }
 
     setImageSrc("");
