@@ -41,6 +41,8 @@ function App() {
   const [autoPricingError, setAutoPricingError] = useState("");
   const [autoPricingProgress, setAutoPricingProgress] = useState({ processed: 0, total: 0 });
   const [searchHistory, setSearchHistory] = useState([]);
+  const [isSuggestionOpen, setIsSuggestionOpen] = useState(false);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
 
   const {
     detailsState,
@@ -171,6 +173,30 @@ function App() {
     return ["all", ...Array.from(units).sort((a, b) => a.localeCompare(b))];
   }, [results]);
 
+
+  const searchSuggestions = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return [];
+    }
+
+    const prefixMatches = [];
+    const substringMatches = [];
+
+    searchHistory.forEach((term) => {
+      const normalizedTerm = term.toLowerCase();
+      if (normalizedTerm.startsWith(normalizedQuery)) {
+        prefixMatches.push(term);
+      } else if (normalizedTerm.includes(normalizedQuery)) {
+        substringMatches.push(term);
+      }
+    });
+
+    return [...prefixMatches, ...substringMatches];
+  }, [query, searchHistory]);
+
+  const showSuggestions = isSuggestionOpen && query.trim().length > 0 && searchSuggestions.length > 0;
+
   function formatSuggestedPrice(item, rowIndex) {
     const relatedOffers = relatedOffersByRow[rowIndex] || [];
     const pricedValues = [item, ...relatedOffers]
@@ -197,6 +223,8 @@ function App() {
     setQuery(value);
     resetFilters();
     resetDetailExpansion();
+    setActiveSuggestionIndex(-1);
+    setIsSuggestionOpen(value.trim().length > 0);
   }
 
   function handlePageSizeChange(value) {
@@ -208,6 +236,46 @@ function App() {
     setQuery(value);
     resetFilters();
     resetDetailExpansion();
+    setActiveSuggestionIndex(-1);
+    setIsSuggestionOpen(false);
+  }
+
+  function handleQueryKeyDown(event) {
+    if (!showSuggestions) {
+      if (event.key === "Escape") {
+        setIsSuggestionOpen(false);
+        setActiveSuggestionIndex(-1);
+      }
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveSuggestionIndex((currentIndex) =>
+        currentIndex < searchSuggestions.length - 1 ? currentIndex + 1 : 0
+      );
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveSuggestionIndex((currentIndex) =>
+        currentIndex > 0 ? currentIndex - 1 : searchSuggestions.length - 1
+      );
+      return;
+    }
+
+    if (event.key === "Enter" && activeSuggestionIndex >= 0) {
+      event.preventDefault();
+      handleHistorySelection(searchSuggestions[activeSuggestionIndex]);
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setIsSuggestionOpen(false);
+      setActiveSuggestionIndex(-1);
+    }
   }
 
   useEffect(() => {
@@ -419,11 +487,41 @@ function App() {
                     <p className="panel-subtext">Structured filtering for catalog management and pricing governance.</p>
 
                     <div className="search-box search-box-compact">
-                      <input
-                        value={query}
-                        onChange={(e) => handleQueryChange(e.target.value)}
-                        placeholder="Search SCN pricing table by model, manufacturer, description, or part number"
-                      />
+                      <div className="typeahead-wrap">
+                        <input
+                          value={query}
+                          onChange={(e) => handleQueryChange(e.target.value)}
+                          onFocus={() => setIsSuggestionOpen(query.trim().length > 0)}
+                          onBlur={() => {
+                            setIsSuggestionOpen(false);
+                            setActiveSuggestionIndex(-1);
+                          }}
+                          onKeyDown={handleQueryKeyDown}
+                          placeholder="Search SCN pricing table by model, manufacturer, description, or part number"
+                          aria-autocomplete="list"
+                          aria-expanded={showSuggestions}
+                          aria-controls="search-typeahead-list"
+                        />
+                        {showSuggestions && (
+                          <ul id="search-typeahead-list" className="typeahead-list" role="listbox">
+                            {searchSuggestions.map((term, index) => (
+                              <li key={term.toLowerCase()} role="option" aria-selected={index === activeSuggestionIndex}>
+                                <button
+                                  type="button"
+                                  className={`typeahead-item ${index === activeSuggestionIndex ? "active" : ""}`}
+                                  onMouseDown={(event) => {
+                                    event.preventDefault();
+                                    handleHistorySelection(term);
+                                  }}
+                                  onMouseEnter={() => setActiveSuggestionIndex(index)}
+                                >
+                                  {term}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                     </div>
 
                     {searchHistory.length > 0 && (

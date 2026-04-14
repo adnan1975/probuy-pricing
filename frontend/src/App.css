@@ -922,6 +922,46 @@ body {
   width: 100%;
 }
 
+
+.typeahead-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.typeahead-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  background: #ffffff;
+  border: 1px solid #d4d4d8;
+  border-radius: 10px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.typeahead-item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: #27272a;
+  font-size: 14px;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.typeahead-item:hover,
+.typeahead-item.active {
+  background: #f4f4f5;
+}
+
 .dashboard-header {
   margin-bottom: 16px;
 }
