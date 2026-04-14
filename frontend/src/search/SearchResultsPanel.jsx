@@ -36,12 +36,12 @@ function ProductImage({ src, alt }) {
   const [imageSrc, setImageSrc] = useState(src);
   const [fallbackIndex, setFallbackIndex] = useState(0);
   const fallbackSequence = useMemo(() => {
-    const largerUrl = buildFolderVariantUrl(src, "larger");
-    const largerWebpUrl = buildWebpFallbackUrl(largerUrl);
     const largeUrl = buildFolderVariantUrl(src, "large");
     const largeWebpUrl = buildWebpFallbackUrl(largeUrl);
+    const xlargeUrl = buildFolderVariantUrl(src, "xlarge") || src;
+    const xlargeWebpUrl = buildWebpFallbackUrl(xlargeUrl);
 
-    return [largerUrl, largerWebpUrl, largeUrl, largeWebpUrl].filter(Boolean);
+    return [largeUrl, largeWebpUrl, xlargeUrl, xlargeWebpUrl].filter(Boolean);
   }, [src]);
 
   if (!imageSrc) {
