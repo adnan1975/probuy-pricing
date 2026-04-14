@@ -260,6 +260,13 @@ body {
   color: #3f3f46;
 }
 
+.search-hint-pills {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .error-box {
   background: #fff1f2;
   border: 1px solid #fecdd3;

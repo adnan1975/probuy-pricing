@@ -31,6 +31,7 @@ function App() {
   const [analysis, setAnalysis] = useState(null);
   const [perSourceErrors, setPerSourceErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [hasCompletedSearchRequest, setHasCompletedSearchRequest] = useState(false);
   const [apiError, setApiError] = useState("");
   const [totalPages, setTotalPages] = useState(0);
   const [totalResults, setTotalResults] = useState(0);
@@ -70,6 +71,7 @@ function App() {
     async function loadResults() {
       if (!canSearch) {
         setLoading(false);
+        setHasCompletedSearchRequest(false);
         setApiError("");
         setResults([]);
         setDetailsState({});
@@ -101,6 +103,7 @@ function App() {
         setPerSourceErrors(step1Data.per_source_errors || {});
         setTotalPages(step1Data.total_pages || 0);
         setTotalResults(step1Data.total_results || 0);
+        setHasCompletedSearchRequest(true);
       } catch (err) {
         if (err.name !== "AbortError") {
           setApiError(err.message || "Could not load results");
@@ -110,6 +113,7 @@ function App() {
           setPerSourceErrors({});
           setTotalPages(0);
           setTotalResults(0);
+          setHasCompletedSearchRequest(true);
         }
       } finally {
         setLoading(false);
@@ -616,6 +620,8 @@ function App() {
                   apiError={apiError}
                   loading={loading}
                   canSearch={canSearch}
+                  hasActiveSearch={canSearch}
+                  hasCompletedSearchRequest={hasCompletedSearchRequest}
                   visibleResults={visibleResults}
                   analysis={analysis}
                   totalResults={totalResults}
