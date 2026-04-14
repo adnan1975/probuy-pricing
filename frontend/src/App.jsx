@@ -6,6 +6,7 @@ import { SearchResultsPanel } from "./search/SearchResultsPanel";
 import { useFilterState } from "./search/useFilterState";
 import { useProductDetailExpansion } from "./search/useProductDetailExpansion";
 import { useSearchInput } from "./search/useSearchInput";
+import { getSearchHistory, saveSearchTerm } from "./search/searchHistoryService";
 
 const topMenuItems = ["Dashboard", "Pricing", "Automated Pricing Test", "Settings"];
 
@@ -39,6 +40,7 @@ function App() {
   const [autoPricingStatus, setAutoPricingStatus] = useState("idle");
   const [autoPricingError, setAutoPricingError] = useState("");
   const [autoPricingProgress, setAutoPricingProgress] = useState({ processed: 0, total: 0 });
+  const [searchHistory, setSearchHistory] = useState([]);
 
   const {
     detailsState,
@@ -53,6 +55,10 @@ function App() {
     visibleResults: results,
     trimmedQuery
   });
+
+  useEffect(() => {
+    setSearchHistory(getSearchHistory());
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -83,6 +89,9 @@ function App() {
 
         const scnResults = Array.isArray(step1Data.results) ? step1Data.results : [];
         setResults(scnResults);
+        if (scnResults.length > 0) {
+          setSearchHistory(saveSearchTerm(trimmedQuery));
+        }
         setDetailsState({});
         setAnalysis(step1Data.analysis || null);
         setPerSourceErrors(step1Data.per_source_errors || {});
@@ -192,6 +201,12 @@ function App() {
 
   function handlePageSizeChange(value) {
     setPageSize(value);
+    resetDetailExpansion();
+  }
+
+  function handleHistorySelection(value) {
+    setQuery(value);
+    resetFilters();
     resetDetailExpansion();
   }
 
@@ -410,6 +425,24 @@ function App() {
                         placeholder="Search SCN pricing table by model, manufacturer, description, or part number"
                       />
                     </div>
+
+                    {searchHistory.length > 0 && (
+                      <div className="search-history" aria-label="recent searches">
+                        <div className="search-history-label">Recent searches</div>
+                        <div className="search-history-list">
+                          {searchHistory.map((term) => (
+                            <button
+                              type="button"
+                              key={term.toLowerCase()}
+                              className="search-history-chip"
+                              onClick={() => handleHistorySelection(term)}
+                            >
+                              {term}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     <label className="filter-group">
                       <span>Model</span>
