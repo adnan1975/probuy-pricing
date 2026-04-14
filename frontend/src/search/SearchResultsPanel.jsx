@@ -23,7 +23,9 @@ export function SearchResultsPanel({
   formatCurrency,
   formatSuggestedPrice,
   onToggleDetails,
-  onRetryConnector
+  onRetryConnector,
+  onClearFilters,
+  onUseExampleQuery
 }) {
   const hasVisibleResults = visibleResults.length > 0;
   const loadingQueryLabel = activeQuery || "your query";
@@ -50,7 +52,23 @@ export function SearchResultsPanel({
         </div>
       )}
       {!loading && !apiError && canSearch && hasCompletedSearchRequest && !hasVisibleResults && (
-        <div className="info-box">No connector matches were found for this query.</div>
+        <div className="info-box">
+          <strong>No matches found for "{activeQuery}".</strong>
+          <ul>
+            <li>Try fewer words</li>
+            <li>Try SKU/part number</li>
+            <li>Check spelling</li>
+            <li>Remove filters</li>
+          </ul>
+          <div className="result-card-actions">
+            <button className="publish-btn" type="button" onClick={onClearFilters}>
+              Clear filters
+            </button>
+            <button className="publish-btn" type="button" onClick={onUseExampleQuery}>
+              Use example query
+            </button>
+          </div>
+        </div>
       )}
       {!loading && !apiError && canSearch && hasVisibleResults && (analysis?.priced_results ?? 0) === 0 && (
         <div className="info-box">No price could be found yet. Items are shown with defaults so you can still compare sources.</div>

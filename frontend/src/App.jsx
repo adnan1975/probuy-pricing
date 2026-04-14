@@ -218,6 +218,24 @@ function App() {
     resetDetailExpansion();
   }
 
+  function resetSearchViewState() {
+    setPage(1);
+    resetDetailExpansion();
+  }
+
+  function handleClearFiltersRecovery() {
+    resetFilters();
+    resetSearchViewState();
+  }
+
+  function handleUseExampleQueryRecovery() {
+    setQuery("DEWALT FLEXVOLT grinder DCG418B");
+    resetFilters();
+    resetSearchViewState();
+    setActiveSuggestionIndex(-1);
+    setIsSuggestionOpen(false);
+  }
+
   function handleHistorySelection(value) {
     setQuery(value);
     resetFilters();
@@ -647,6 +665,8 @@ function App() {
                   formatSuggestedPrice={formatSuggestedPrice}
                   onToggleDetails={toggleDetails}
                   onRetryConnector={retryDetailsForConnector}
+                  onClearFilters={handleClearFiltersRecovery}
+                  onUseExampleQuery={handleUseExampleQueryRecovery}
                 />
 
                 {Object.keys(perSourceErrors).length > 0 && (
