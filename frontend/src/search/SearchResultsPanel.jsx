@@ -133,6 +133,20 @@ export function SearchResultsPanel({
             const relatedOffers = relatedOffersByRow[idx] || [];
             const rowDetails = detailsState[String(idx)] || {};
             const isExpanded = Boolean(expandedRows[idx]);
+            const metaRows = [
+              [
+                { label: "Brand", value: item.brand || "N/A" },
+                { label: "Model", value: item.model || item.sku || "N/A" }
+              ],
+              [
+                { label: "SKU", value: item.sku || "N/A" },
+                { label: "Availability", value: item.availability || "Unknown" }
+              ],
+              [
+                { label: "Distributor Cost", value: formatCurrency(item.distributor_cost) },
+                { label: "Warehouse", value: item.location || item.warehouse_location || item.warehouse || "N/A" }
+              ]
+            ];
             return (
               <div className={`result-card ${isBestMatch ? "best-match-card" : ""}`} key={rowKey}>
                 <div className="result-card-header">
@@ -154,12 +168,16 @@ export function SearchResultsPanel({
                 </div>
 
                 <div className="result-card-meta">
-                  <div className="result-card-meta-item"><span className="table-sub">Brand</span>{item.brand || "N/A"}</div>
-                  <div className="result-card-meta-item"><span className="table-sub">Model</span>{item.model || item.sku || "N/A"}</div>
-                  <div className="result-card-meta-item"><span className="table-sub">SKU</span>{item.sku || "N/A"}</div>
-                  <div className="result-card-meta-item"><span className="table-sub">Availability</span>{item.availability || "Unknown"}</div>
-                  <div className="result-card-meta-item"><span className="table-sub">Distributor Cost</span>{formatCurrency(item.distributor_cost)}</div>
-                  <div className="result-card-meta-item"><span className="table-sub">Warehouse</span>{item.location || item.warehouse_location || item.warehouse || "N/A"}</div>
+                  {metaRows.map((metaRow, rowIndex) => (
+                    <div className="result-card-meta-row" key={`meta-row-${rowIndex}`}>
+                      {metaRow.map((metaItem) => (
+                        <div className="result-card-meta-item" key={metaItem.label}>
+                          <span className="table-sub">{metaItem.label}</span>
+                          {metaItem.value}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
                 </div>
 
                 <div className="suggested-price">Suggested Price: {formatSuggestedPrice(item, idx)}</div>
@@ -172,12 +190,13 @@ export function SearchResultsPanel({
                     type="button"
                     onClick={() => onToggleDetails(idx)}
                   >
-                    {isExpanded ? "Hide Details" : "Details"}
+                    {isExpanded ? "Hide Competitor Pricing" : "Get Competitor Pricing"}
                   </button>
                 </div>
 
                 {isExpanded && (
                   <Fragment>
+                    <div className="details-section">
                     <div className="details-title">Connector prices for {item.sku || item.title}</div>
                     <div className="details-grid">
                       {detailConnectorConfigs.map((connector) => {
@@ -185,6 +204,8 @@ export function SearchResultsPanel({
                         const isLoading = Boolean(rowDetails.loadingBySource?.[connector.source]);
                         const error = rowDetails.errorsBySource?.[connector.source];
                         const connectorStatus = rowDetails.statusBySource?.[connector.source] || { steps: [], state: "idle" };
+                        const statusMessage = offer?.availability
+                          || (error ? `Error: ${error}` : connectorStatus.state === "failed" ? "Connector failed to return price" : "No availability update");
                         return (
                           <div className="details-card" key={connector.source}>
                             <div className="table-strong">{connector.source}</div>
@@ -194,7 +215,7 @@ export function SearchResultsPanel({
                               <div>{offer?.price_text || "Price unavailable"}</div>
                             )}
                             <div className="table-sub">
-                              {offer?.availability || (error ? `Error: ${error}` : "Waiting for connector")}
+                              {statusMessage}
                             </div>
                             {connectorStatus.steps.length > 0 && (
                               <div className="status-list">
@@ -221,7 +242,7 @@ export function SearchResultsPanel({
                                 target="_blank"
                                 rel="noreferrer"
                               >
-                                Open details ↗
+                                View competitor listing ↗
                               </a>
                             )}
                           </div>
@@ -233,6 +254,7 @@ export function SearchResultsPanel({
                           <div className="table-sub">Connectors returned no priced matches for this item.</div>
                         </div>
                       )}
+                    </div>
                     </div>
                   </Fragment>
                 )}
