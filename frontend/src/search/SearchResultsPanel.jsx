@@ -12,27 +12,27 @@ function buildWebpFallbackUrl(imageUrl) {
   }
 
   const webpPath = basePath.replace(/\.jpe?g$/i, ".webp");
-  const unixTimestamp = Math.floor(Date.now() / 1000);
-  const timestampParam = `${unixTimestamp}`;
-  const querySuffix = queryString ? `?${queryString}&${timestampParam}` : `?${timestampParam}`;
+  const querySuffix = queryString ? `?${queryString}` : "";
   const hashSuffix = hashFragment ? `#${hashFragment}` : "";
   return `${webpPath}${querySuffix}${hashSuffix}`;
+}
+
+function buildWebpTimestampFallbackUrl(imageUrl) {
+  if (!imageUrl) return "";
+  const [baseWithPath, hashFragment = ""] = imageUrl.split("#");
+  const [basePath] = baseWithPath.split("?");
+  const unixTimestamp = Math.floor(Date.now() / 1000);
+  const hashSuffix = hashFragment ? `#${hashFragment}` : "";
+  return `${basePath}?${unixTimestamp}${hashSuffix}`;
 }
 
 function buildQuestionMarkFallbackUrl(imageUrl) {
   if (!imageUrl) return "";
   const [baseWithPath, hashFragment = ""] = imageUrl.split("#");
+  const [basePath] = baseWithPath.split("?");
   const hashSuffix = hashFragment ? `#${hashFragment}` : "";
 
-  if (baseWithPath.endsWith("?") || baseWithPath.endsWith("&")) {
-    return `${baseWithPath}${hashSuffix}`;
-  }
-
-  if (baseWithPath.includes("?")) {
-    return `${baseWithPath}&${hashSuffix}`;
-  }
-
-  return `${baseWithPath}?${hashSuffix}`;
+  return `${basePath}?${hashSuffix}`;
 }
 
 function buildFolderVariantUrl(imageUrl, targetFolder) {
@@ -57,11 +57,22 @@ function ProductImage({ src, alt }) {
     const largeUrl = buildFolderVariantUrl(src, "large");
     const largeWebpUrl = buildWebpFallbackUrl(largeUrl);
     const largeWebpQuestionUrl = buildQuestionMarkFallbackUrl(largeWebpUrl);
+    const largeWebpTimestampUrl = buildWebpTimestampFallbackUrl(largeWebpQuestionUrl);
     const xlargeUrl = buildFolderVariantUrl(src, "xlarge") || src;
     const xlargeWebpUrl = buildWebpFallbackUrl(xlargeUrl);
     const xlargeWebpQuestionUrl = buildQuestionMarkFallbackUrl(xlargeWebpUrl);
+    const xlargeWebpTimestampUrl = buildWebpTimestampFallbackUrl(xlargeWebpQuestionUrl);
 
-    return [largeUrl, largeWebpUrl, largeWebpQuestionUrl, xlargeUrl, xlargeWebpUrl, xlargeWebpQuestionUrl].filter(Boolean);
+    return [
+      largeUrl,
+      largeWebpUrl,
+      largeWebpQuestionUrl,
+      largeWebpTimestampUrl,
+      xlargeUrl,
+      xlargeWebpUrl,
+      xlargeWebpQuestionUrl,
+      xlargeWebpTimestampUrl
+    ].filter(Boolean);
   }, [src]);
 
   if (!imageSrc) {
