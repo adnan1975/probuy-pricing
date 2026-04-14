@@ -133,7 +133,7 @@ export function SearchResultsPanel({
             const relatedOffers = relatedOffersByRow[idx] || [];
             const rowDetails = detailsState[String(idx)] || {};
             const isExpanded = Boolean(expandedRows[idx]);
-            const productImage = typeof item.scn_image === "string" ? item.scn_image.trim() : "";
+            const productImage = typeof item.image_url === "string" ? item.image_url.trim() : "";
             const metaRows = [
               [
                 { label: "Brand", value: item.brand || "N/A" },
