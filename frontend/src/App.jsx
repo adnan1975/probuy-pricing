@@ -409,7 +409,7 @@ function App() {
     <div className="page">
       <div className="container">
         <nav className="menu-bar">
-          <div className="menu-title">PriceSense Internal Console</div>
+          <div className="menu-title">Price Sense Admin Console</div>
           <div className="menu-items">
             {topMenuItems.map((item) => (
               <button
@@ -469,8 +469,8 @@ function App() {
             <div className="topbar">
               <div>
                 <div className="tag">Pricing Workspace</div>
-                <h1>Merchant-style product search and filter</h1>
-                <p>Use SCN pricing data in the main query box, then refine with structured filters for internal price operations.</p>
+                <h1>Find products to Check pricing</h1>
+                <p>Search Primary Sources, Then View Competitor Pricing</p>
               </div>
             </div>
 
