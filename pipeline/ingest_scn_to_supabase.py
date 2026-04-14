@@ -17,9 +17,9 @@ if str(API_ROOT) not in sys.path:
     sys.path.insert(0, str(API_ROOT))
 
 from app.connectors.canadiantire_connector import CanadianTireConnector
+from app.connectors.canadaweldingsupply_connector import CanadaWeldingSupplyConnector
 from app.connectors.homedepot_connector import HomeDepotConnector
 from app.connectors.kms_connector import KMSConnector
-from app.connectors.whitecap_connector import WhiteCapConnector
 from app.services.scn_catalog_service import SCNBatchIngestService
 from app.services.search_service import SearchService
 
@@ -343,7 +343,7 @@ def generate_matched_scn_csv(content_csv: Path, pricing_xlsx: Path, output_csv: 
 async def ingest_connector_prices(csv_path: Path) -> dict[str, int]:
     search_service = SearchService(
         connectors=[
-            WhiteCapConnector(),
+            CanadaWeldingSupplyConnector(),
             KMSConnector(),
             CanadianTireConnector(),
             HomeDepotConnector(),
