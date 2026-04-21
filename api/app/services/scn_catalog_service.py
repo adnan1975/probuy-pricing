@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 import requests
 
 from app.config import settings
+from app.utils.query_normalization import expand_measurement_variants, normalize_measurements
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,7 @@ class SCNCatalogService:
         }
 
     def search(self, query: str) -> list[SCNItem]:
-        normalized_query = query.strip().lower()
+        normalized_query = normalize_measurements(query.strip().lower())
         self.last_load_warning = None
         if not normalized_query:
             self._items = []
@@ -154,13 +155,29 @@ class SCNCatalogService:
             "select": select_clause,
             "order": "model.asc",
         }
-        normalized_query = (query or "").strip()
+        normalized_query = normalize_measurements((query or "").strip())
         if normalized_query:
-            escaped = normalized_query.replace("*", "").replace(",", " ")
-            params["or"] = (
-                f"(model.ilike.*{escaped}*,manufacturer_model.ilike.*{escaped}*,"
-                f"description.ilike.*{escaped}*,manufacturer.ilike.*{escaped}*)"
-            )
+            expanded_queries = expand_measurement_variants(normalized_query)
+            searchable_terms: list[str] = []
+            for term in expanded_queries:
+                escaped = re.sub(r"[^a-z0-9.\s\"']+", " ", term).replace("*", "").replace(",", " ")
+                escaped = " ".join(escaped.split())
+                if escaped and escaped not in searchable_terms:
+                    searchable_terms.append(escaped)
+
+            clauses: list[str] = []
+            for term in searchable_terms[:8]:
+                clauses.extend(
+                    [
+                        f"model.ilike.*{term}*",
+                        f"manufacturer_model.ilike.*{term}*",
+                        f"description.ilike.*{term}*",
+                        f"manufacturer.ilike.*{term}*",
+                    ]
+                )
+
+            if clauses:
+                params["or"] = f"({','.join(clauses)})"
         headers = {
             "apikey": settings.supabase_service_role_key,
             "Authorization": f"Bearer {settings.supabase_service_role_key}",
