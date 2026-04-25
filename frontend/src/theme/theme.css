@@ -1,17 +1,17 @@
 :root {
-  --ps-color-primary: #0b1f3a;
-  --ps-color-secondary: #1f3a5f;
-  --ps-color-accent: #00a8a8;
-  --ps-color-bg: #f7f9fc;
+  --ps-color-primary: #1e293b;
+  --ps-color-secondary: #334155;
+  --ps-color-accent: #0ea5e9;
+  --ps-color-bg: #eef2ff;
   --ps-color-surface: #ffffff;
-  --ps-color-text-primary: #1a1a1a;
-  --ps-color-text-secondary: #6b7280;
+  --ps-color-text-primary: #0f172a;
+  --ps-color-text-secondary: #475569;
   --ps-color-success: #16a34a;
   --ps-color-warning: #f59e0b;
   --ps-color-danger: #dc2626;
-  --ps-color-row-hover: #e6fffa;
-  --ps-color-table-stripe: #f9fafb;
-  --ps-color-border: #d8e1eb;
+  --ps-color-row-hover: #e0f2fe;
+  --ps-color-table-stripe: #f8fafc;
+  --ps-color-border: #cbd5e1;
 
   --ps-radius-sm: 8px;
   --ps-radius-md: 12px;
@@ -19,9 +19,9 @@
   --ps-radius-xl: 22px;
   --ps-radius-pill: 999px;
 
-  --ps-shadow-sm: 0 2px 8px rgba(11, 31, 58, 0.06);
-  --ps-shadow-md: 0 8px 20px rgba(11, 31, 58, 0.1);
-  --ps-shadow-lg: 0 14px 32px rgba(11, 31, 58, 0.14);
+  --ps-shadow-sm: 0 3px 10px rgba(15, 23, 42, 0.08);
+  --ps-shadow-md: 0 10px 26px rgba(30, 41, 59, 0.13);
+  --ps-shadow-lg: 0 18px 40px rgba(30, 41, 59, 0.18);
 
   --ps-space-xs: 4px;
   --ps-space-sm: 8px;

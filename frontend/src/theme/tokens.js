@@ -1,18 +1,18 @@
 export const themeTokens = {
   colors: {
-    primaryNavy: '#0B1F3A',
-    secondaryNavy: '#1F3A5F',
-    accentTeal: '#00A8A8',
-    background: '#F7F9FC',
+    primaryNavy: '#1E293B',
+    secondaryNavy: '#334155',
+    accentTeal: '#0EA5E9',
+    background: '#EEF2FF',
     surface: '#FFFFFF',
-    textPrimary: '#1A1A1A',
-    textSecondary: '#6B7280',
+    textPrimary: '#0F172A',
+    textSecondary: '#475569',
     success: '#16A34A',
     warning: '#F59E0B',
     danger: '#DC2626',
-    rowHover: '#E6FFFA',
-    tableStripe: '#F9FAFB',
-    border: '#D8E1EB'
+    rowHover: '#E0F2FE',
+    tableStripe: '#F8FAFC',
+    border: '#CBD5E1'
   },
   borderRadius: {
     sm: '8px',
@@ -22,9 +22,9 @@ export const themeTokens = {
     pill: '999px'
   },
   shadows: {
-    sm: '0 2px 8px rgba(11, 31, 58, 0.06)',
-    md: '0 8px 20px rgba(11, 31, 58, 0.10)',
-    lg: '0 14px 32px rgba(11, 31, 58, 0.14)'
+    sm: '0 3px 10px rgba(15, 23, 42, 0.08)',
+    md: '0 10px 26px rgba(30, 41, 59, 0.13)',
+    lg: '0 18px 40px rgba(30, 41, 59, 0.18)'
   },
   spacing: {
     xs: '4px',

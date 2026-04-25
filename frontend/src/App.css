@@ -961,6 +961,9 @@ body {
 .filter-sidebar {
   position: sticky;
   top: 20px;
+  background: linear-gradient(165deg, #f8fbff 0%, #eef4ff 100%);
+  border: 1px solid #bfdbfe;
+  box-shadow: 0 14px 34px rgba(30, 64, 175, 0.12);
 }
 
 .filter-sidebar.collapsed {
@@ -1048,6 +1051,10 @@ body {
 .pricing-content {
   min-width: 0;
   width: 100%;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border: 1px solid #dbeafe;
+  padding: 14px;
 }
 
 .search-hero-panel {
@@ -1115,6 +1122,30 @@ body {
 .search-controls-note {
   color: #71717a;
   font-size: 13px;
+}
+
+.results-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.results-toolbar-note {
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.results-toolbar-sort {
+  min-width: 220px;
+  margin-top: 0;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(14, 116, 144, 0.1);
 }
 
 .search-summary-grid {
@@ -1399,7 +1430,9 @@ body {
 }
 
 .result-card {
-  background: linear-gradient(180deg, var(--ps-color-surface) 0%, var(--ps-color-table-stripe) 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+  border-color: #cbd5e1;
+  box-shadow: 0 8px 22px rgba(30, 41, 59, 0.12);
 }
 
 .retailer-table tbody tr:nth-child(even) {
@@ -1411,6 +1444,11 @@ body {
 .typeahead-item:hover,
 .typeahead-item.active {
   background: var(--ps-color-row-hover);
+}
+
+.result-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px rgba(30, 41, 59, 0.16);
 }
 
 .pill-source.active {
@@ -1449,4 +1487,30 @@ body {
 
 .graph-col {
   background: linear-gradient(180deg, var(--ps-color-accent), var(--ps-color-secondary));
+}
+
+.filter-sidebar.panel {
+  background: linear-gradient(165deg, #f4f8ff 0%, #e8f0ff 100%);
+  border-color: #bfdbfe;
+  box-shadow: 0 14px 34px rgba(30, 64, 175, 0.12);
+}
+
+.pricing-content {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border-color: #dbeafe;
+}
+
+.result-card {
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbff 100%);
+  border-color: #cbd5e1;
+}
+
+@media (max-width: 900px) {
+  .results-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .results-toolbar-sort {
+    min-width: 0;
+  }
 }
