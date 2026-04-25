@@ -1,15 +1,34 @@
-import { buildDetailRequestBody, buildStep1QueryParams } from "./queryBuilder";
+import { buildDetailRequestBody } from "./queryBuilder";
+import { searchProducts } from "../integrations/probuyProductSearch";
 
 /**
- * @param {{apiUrl: string, query: string, page: number, pageSize: number, signal?: AbortSignal}} args
+ * @param {{query: string, page: number, pageSize: number, filters?: Record<string, unknown>, signal?: AbortSignal}} args
  */
-export async function fetchStep1Results({ apiUrl, query, page, pageSize, signal }) {
-  const params = buildStep1QueryParams({ product: query, page, pageSize });
-  const response = await fetch(`${apiUrl}/search/step1?${params.toString()}`, { signal });
-  if (!response.ok) {
-    throw new Error(`Backend returned ${response.status} from step1`);
-  }
-  return response.json();
+export async function fetchStep1Results({ query, page, pageSize, filters = {}, signal }) {
+  const offset = Math.max(page - 1, 0) * pageSize;
+  const payload = await searchProducts(
+    {
+      q: query,
+      ...filters,
+      limit: pageSize,
+      offset
+    },
+    { signal }
+  );
+
+  return {
+    results: payload.results,
+    total_results: payload.total_count,
+    total_pages: payload.total_count > 0 ? Math.ceil(payload.total_count / pageSize) : 0,
+    facetDistribution: payload.facetDistribution,
+    applied_filters: payload.applied_filters,
+    engine_used: payload.engine_used,
+    fallback_applied: payload.fallback_applied,
+    analysis: {
+      total_results: payload.total_count,
+      priced_results: payload.results.filter((item) => typeof item.price_value === "number").length
+    }
+  };
 }
 
 /**

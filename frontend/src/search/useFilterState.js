@@ -1,14 +1,19 @@
 import { useState } from "react";
 
-const defaultPriceRange = { min: "", max: "" };
+const defaultRange = { min: "", max: "" };
 
 const defaultFilters = {
-  model: "",
-  manufacturerModel: "",
-  listPrice: { ...defaultPriceRange },
-  distributorCost: { ...defaultPriceRange },
-  warehouses: [],
-  unit: "all"
+  brand: "",
+  manufacturer: "",
+  category: "",
+  source: "",
+  stock_status: "",
+  attributes: {},
+  price: { ...defaultRange },
+  length: { ...defaultRange },
+  width: { ...defaultRange },
+  height: { ...defaultRange },
+  weight: { ...defaultRange }
 };
 
 export function useFilterState() {
@@ -36,17 +41,14 @@ export function useFilterState() {
     }));
   }
 
-  function toggleWarehouse(warehouseCode) {
-    setDraftFilters((prev) => {
-      const hasWarehouse = prev.warehouses.includes(warehouseCode);
-      const nextWarehouses = hasWarehouse
-        ? prev.warehouses.filter((code) => code !== warehouseCode)
-        : [...prev.warehouses, warehouseCode];
-      return {
-        ...prev,
-        warehouses: nextWarehouses
-      };
-    });
+  function updateAttributeFilter(attribute, value) {
+    setDraftFilters((prev) => ({
+      ...prev,
+      attributes: {
+        ...prev.attributes,
+        [attribute]: value
+      }
+    }));
   }
 
   function applyFilters() {
@@ -72,7 +74,7 @@ export function useFilterState() {
     filters,
     updateFilter,
     updateRangeFilter,
-    toggleWarehouse,
+    updateAttributeFilter,
     applyFilters,
     resetFilters
   };

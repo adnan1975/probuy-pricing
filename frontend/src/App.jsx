@@ -22,7 +22,7 @@ function App() {
     filters,
     updateFilter,
     updateRangeFilter,
-    toggleWarehouse,
+    updateAttributeFilter,
     applyFilters,
     resetFilters
   } = useFilterState();
@@ -37,6 +37,7 @@ function App() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalResults, setTotalResults] = useState(0);
   const [isFilterCollapsed, setIsFilterCollapsed] = useState(false);
+  const [facetDistribution, setFacetDistribution] = useState({});
   const [autoPricingJobId, setAutoPricingJobId] = useState("");
   const [autoPricingRows, setAutoPricingRows] = useState([]);
   const [autoPricingStatus, setAutoPricingStatus] = useState("idle");
@@ -84,6 +85,7 @@ function App() {
         setPerSourceErrors({});
         setTotalPages(0);
         setTotalResults(0);
+        setFacetDistribution({});
         return;
       }
 
@@ -95,6 +97,7 @@ function App() {
           query: debouncedTrimmedQuery,
           page,
           pageSize,
+          filters,
           signal: controller.signal
         });
 
@@ -108,6 +111,7 @@ function App() {
         setPerSourceErrors(step1Data.per_source_errors || {});
         setTotalPages(step1Data.total_pages || 0);
         setTotalResults(step1Data.total_results || 0);
+        setFacetDistribution(step1Data.facetDistribution || {});
         setHasCompletedSearchRequest(true);
       } catch (err) {
         if (err.name !== "AbortError") {
@@ -118,6 +122,7 @@ function App() {
           setPerSourceErrors({});
           setTotalPages(0);
           setTotalResults(0);
+          setFacetDistribution({});
           setHasCompletedSearchRequest(true);
         }
       } finally {
@@ -129,60 +134,27 @@ function App() {
       loadResults();
     }
     return () => controller.abort();
-  }, [activePage, canSearch, debouncedTrimmedQuery, page, pageSize, saveSuccessfulSearch, setDetailsState]);
+  }, [activePage, canSearch, debouncedTrimmedQuery, filters, page, pageSize, saveSuccessfulSearch, setDetailsState]);
 
-  const visibleResults = useMemo(() => {
-    const parseOptionalNumber = (value) => {
-      if (value === "" || value === null || value === undefined) {
-        return Number.NaN;
-      }
-      return Number(value);
+  const visibleResults = results;
+
+  const facetOptions = useMemo(() => {
+    const toSortedList = (facetKey) => Object.keys(facetDistribution?.[facetKey] || {}).sort((a, b) => a.localeCompare(b));
+    const reserved = new Set(["brand", "manufacturer", "category", "source", "stock_status"]);
+    const dynamicAttributeKeys = Object.keys(facetDistribution || {})
+      .filter((key) => !reserved.has(key))
+      .sort((a, b) => a.localeCompare(b));
+
+    return {
+      brand: toSortedList("brand"),
+      manufacturer: toSortedList("manufacturer"),
+      category: toSortedList("category"),
+      source: toSortedList("source"),
+      stock_status: toSortedList("stock_status"),
+      dynamicAttributeKeys
     };
+  }, [facetDistribution]);
 
-    const modelFilter = filters.model.trim().toLowerCase();
-    const manufacturerModelFilter = filters.manufacturerModel.trim().toLowerCase();
-    const selectedUnit = filters.unit;
-    const selectedWarehouses = filters.warehouses;
-    const listPriceMin = parseOptionalNumber(filters.listPrice.min);
-    const listPriceMax = parseOptionalNumber(filters.listPrice.max);
-    const distributorCostMin = parseOptionalNumber(filters.distributorCost.min);
-    const distributorCostMax = parseOptionalNumber(filters.distributorCost.max);
-
-    return results.filter((item) => {
-      const modelMatches = !modelFilter || (item.model || "").toLowerCase().includes(modelFilter);
-      const manufacturerModelMatches =
-        !manufacturerModelFilter || (item.manufacturer_model || "").toLowerCase().includes(manufacturerModelFilter);
-      const listPriceValue = typeof item.price_value === "number" ? item.price_value : Number.NaN;
-      const distributorCostValue = typeof item.distributor_cost === "number" ? item.distributor_cost : Number.NaN;
-      const listPriceMinMatch = Number.isNaN(listPriceMin) || Number.isNaN(listPriceValue) || listPriceValue >= listPriceMin;
-      const listPriceMaxMatch = Number.isNaN(listPriceMax) || Number.isNaN(listPriceValue) || listPriceValue <= listPriceMax;
-      const distributorCostMinMatch =
-        Number.isNaN(distributorCostMin) || Number.isNaN(distributorCostValue) || distributorCostValue >= distributorCostMin;
-      const distributorCostMaxMatch =
-        Number.isNaN(distributorCostMax) || Number.isNaN(distributorCostValue) || distributorCostValue <= distributorCostMax;
-      const warehouseValue = (item.warehouse || item.warehouse_location || item.location || "").trim().toUpperCase();
-      const warehouseMatches =
-        selectedWarehouses.length === 0 || selectedWarehouses.some((warehouseCode) => warehouseValue.includes(warehouseCode));
-      const itemUnit = (item.unit || "").trim();
-      const unitMatches = selectedUnit === "all" || itemUnit === selectedUnit;
-
-      return (
-        modelMatches &&
-        manufacturerModelMatches &&
-        listPriceMinMatch &&
-        listPriceMaxMatch &&
-        distributorCostMinMatch &&
-        distributorCostMaxMatch &&
-        warehouseMatches &&
-        unitMatches
-      );
-    });
-  }, [filters, results]);
-
-  const unitOptions = useMemo(() => {
-    const units = new Set(results.map((item) => (item.unit || "").trim()).filter(Boolean));
-    return ["all", ...Array.from(units).sort((a, b) => a.localeCompare(b))];
-  }, [results]);
   function formatSuggestedPrice(item, rowIndex) {
     const relatedOffers = relatedOffersByRow[rowIndex] || [];
     const pricedValues = [item, ...relatedOffers]
@@ -488,7 +460,7 @@ function App() {
                 </div>
                 {!isFilterCollapsed && (
                   <>
-                    <p className="panel-subtext">Structured filtering for catalog management and pricing governance.</p>
+                    <p className="panel-subtext">Faceted search over product index filters and dynamic attributes.</p>
 
                     <div className="search-box search-box-compact">
                       <div className="typeahead-wrap">
@@ -501,7 +473,7 @@ function App() {
                             setActiveSuggestionIndex(-1);
                           }}
                           onKeyDown={handleQueryKeyDown}
-                          placeholder="Search SCN pricing table by model, manufacturer, description, or part number"
+                          placeholder="Search by product name, model, SKU, or part number"
                           aria-autocomplete="list"
                           aria-expanded={showSuggestions}
                           aria-controls="search-typeahead-list"
@@ -547,79 +519,82 @@ function App() {
                     )}
 
                     <label className="filter-group">
-                      <span>Model</span>
-                      <input value={draftFilters.model} onChange={(e) => updateFilter("model", e.target.value)} placeholder="Filter model" />
+                      <span>Brand</span>
+                      <input value={draftFilters.brand} onChange={(e) => updateFilter("brand", e.target.value)} placeholder="e.g. DEWALT" />
                     </label>
 
                     <label className="filter-group">
-                      <span>Manufacturer Model</span>
+                      <span>Manufacturer</span>
                       <input
-                        value={draftFilters.manufacturerModel}
-                        onChange={(e) => updateFilter("manufacturerModel", e.target.value)}
-                        placeholder="Filter manufacturer model"
+                        value={draftFilters.manufacturer}
+                        onChange={(e) => updateFilter("manufacturer", e.target.value)}
+                        placeholder="e.g. 3M"
                       />
                     </label>
 
-                    <div className="filter-group">
-                      <span>List Price Range</span>
-                      <div className="range-row">
-                        <input
-                          type="number"
-                          value={draftFilters.listPrice.min}
-                          onChange={(e) => updateRangeFilter("listPrice", "min", e.target.value)}
-                          placeholder="Min"
-                        />
-                        <input
-                          type="number"
-                          value={draftFilters.listPrice.max}
-                          onChange={(e) => updateRangeFilter("listPrice", "max", e.target.value)}
-                          placeholder="Max"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="filter-group">
-                      <span>Distributor Cost Range</span>
-                      <div className="range-row">
-                        <input
-                          type="number"
-                          value={draftFilters.distributorCost.min}
-                          onChange={(e) => updateRangeFilter("distributorCost", "min", e.target.value)}
-                          placeholder="Min"
-                        />
-                        <input
-                          type="number"
-                          value={draftFilters.distributorCost.max}
-                          onChange={(e) => updateRangeFilter("distributorCost", "max", e.target.value)}
-                          placeholder="Max"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="filter-group">
-                      <span>Warehouse</span>
-                      <div className="warehouse-checkboxes">
-                        {["VAN", "EDM", "MTL"].map((warehouseCode) => (
-                          <label className="checkbox-row" key={warehouseCode}>
-                            <input
-                              type="checkbox"
-                              checked={draftFilters.warehouses.includes(warehouseCode)}
-                              onChange={() => toggleWarehouse(warehouseCode)}
-                            />
-                            <span>{warehouseCode}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-
                     <label className="filter-group">
-                      <span>Unit</span>
-                      <select value={draftFilters.unit} onChange={(e) => updateFilter("unit", e.target.value)}>
-                        {unitOptions.map((option) => (
-                          <option key={option} value={option}>{option === "all" ? "All units" : option}</option>
+                      <span>Category</span>
+                      <select value={draftFilters.category} onChange={(e) => updateFilter("category", e.target.value)}>
+                        <option value="">All categories</option>
+                        {facetOptions.category.map((option) => (
+                          <option key={option} value={option}>{option}</option>
                         ))}
                       </select>
                     </label>
+
+                    <label className="filter-group">
+                      <span>Source</span>
+                      <select value={draftFilters.source} onChange={(e) => updateFilter("source", e.target.value)}>
+                        <option value="">All sources</option>
+                        {facetOptions.source.map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="filter-group">
+                      <span>Stock status</span>
+                      <select value={draftFilters.stock_status} onChange={(e) => updateFilter("stock_status", e.target.value)}>
+                        <option value="">Any stock status</option>
+                        {facetOptions.stock_status.map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <div className="filter-group">
+                      <span>Price Range</span>
+                      <div className="range-row">
+                        <input
+                          type="number"
+                          value={draftFilters.price.min}
+                          onChange={(e) => updateRangeFilter("price", "min", e.target.value)}
+                          placeholder="Min"
+                        />
+                        <input
+                          type="number"
+                          value={draftFilters.price.max}
+                          onChange={(e) => updateRangeFilter("price", "max", e.target.value)}
+                          placeholder="Max"
+                        />
+                      </div>
+                    </div>
+
+                    {facetOptions.dynamicAttributeKeys.map((attributeKey) => (
+                      <label className="filter-group" key={attributeKey}>
+                        <span>{attributeKey}</span>
+                        <select
+                          value={draftFilters.attributes?.[attributeKey] || ""}
+                          onChange={(e) => updateAttributeFilter(attributeKey, e.target.value)}
+                        >
+                          <option value="">All</option>
+                          {Object.keys(facetDistribution?.[attributeKey] || {}).sort((a, b) => a.localeCompare(b)).map((option) => (
+                            <option key={option} value={option}>{option}</option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
+
                     <button type="button" className="apply-filter-btn" onClick={applyFilters}>
                       Apply Filters
                     </button>
