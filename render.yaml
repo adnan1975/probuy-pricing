@@ -17,3 +17,5 @@ services:
   envVars:
   - key: VITE_API_URL
     value: https://pricesense-api.onrender.com
+  - key: VITE_PROBUY_PRODUCT_SEARCH_API_BASE_URL
+    value: https://pricesense-api.onrender.com
