@@ -1320,3 +1320,133 @@ body {
     width: 100%;
   }
 }
+
+/* PriceSense navy + teal theme layer */
+body {
+  background: var(--ps-color-bg);
+  color: var(--ps-color-text-primary);
+  font-family: var(--ps-font-family);
+}
+
+.topbar p,
+.search-history-label,
+.detail-grid,
+.table-sub,
+.search-helper-text,
+.search-controls-note {
+  color: var(--ps-color-text-secondary);
+}
+
+.tag,
+.menu-item.active,
+.search-submit-btn,
+.apply-filter-btn {
+  background: var(--ps-color-primary);
+  color: var(--ps-color-surface);
+  border-color: var(--ps-color-primary);
+}
+
+.help-card,
+.search-box,
+.summary-card,
+.panel,
+.result-row,
+.menu-bar,
+.result-card,
+.typeahead-list,
+.expanded-panel,
+.details-card {
+  background: var(--ps-color-surface);
+  border-color: var(--ps-color-border);
+  box-shadow: var(--ps-shadow-sm);
+}
+
+.search-history-chip,
+.demo-note,
+.retailer-table th,
+.menu-item,
+.filter-collapse-btn,
+.filter-group input,
+.filter-group select {
+  background: var(--ps-color-table-stripe);
+  border-color: var(--ps-color-border);
+}
+
+.search-box input,
+.search-hero-input-row input,
+.pagination-controls select,
+.page-buttons button,
+.publish-btn,
+.details-btn,
+.typeahead-list,
+.typeahead-item {
+  border-color: var(--ps-color-border);
+}
+
+.result-card-price,
+.details-loader,
+.expand-link,
+.details-link,
+.details-btn {
+  color: var(--ps-color-accent);
+}
+
+.result-card-source,
+.result-card-title,
+.menu-title,
+.help-title {
+  color: var(--ps-color-primary);
+}
+
+.result-card {
+  background: linear-gradient(180deg, var(--ps-color-surface) 0%, var(--ps-color-table-stripe) 100%);
+}
+
+.retailer-table tbody tr:nth-child(even) {
+  background: var(--ps-color-table-stripe);
+}
+
+.retailer-table tbody tr:hover,
+.result-row:hover,
+.typeahead-item:hover,
+.typeahead-item.active {
+  background: var(--ps-color-row-hover);
+}
+
+.pill-source.active {
+  background: color-mix(in srgb, var(--ps-color-accent) 12%, var(--ps-color-surface));
+  border-color: color-mix(in srgb, var(--ps-color-accent) 35%, var(--ps-color-surface));
+  color: var(--ps-color-secondary);
+}
+
+.pill-source.inactive {
+  background: var(--ps-color-table-stripe);
+  border-color: var(--ps-color-border);
+  color: var(--ps-color-text-secondary);
+}
+
+.trend,
+.suggested-price {
+  color: var(--ps-color-success);
+}
+
+.error-box {
+  background: color-mix(in srgb, var(--ps-color-danger) 10%, var(--ps-color-surface));
+  border-color: color-mix(in srgb, var(--ps-color-danger) 25%, var(--ps-color-surface));
+  color: var(--ps-color-danger);
+}
+
+.recommend-box {
+  background: color-mix(in srgb, var(--ps-color-success) 10%, var(--ps-color-surface));
+  border-color: color-mix(in srgb, var(--ps-color-success) 25%, var(--ps-color-surface));
+  color: var(--ps-color-success);
+}
+
+.mock-graph {
+  border-color: var(--ps-color-border);
+  background: linear-gradient(180deg, var(--ps-color-table-stripe) 0%, var(--ps-color-surface) 100%);
+}
+
+.graph-col {
+  background: linear-gradient(180deg, var(--ps-color-accent), var(--ps-color-secondary));
+}

@@ -1,0 +1,43 @@
+:root {
+  --ps-color-primary: #0b1f3a;
+  --ps-color-secondary: #1f3a5f;
+  --ps-color-accent: #00a8a8;
+  --ps-color-bg: #f7f9fc;
+  --ps-color-surface: #ffffff;
+  --ps-color-text-primary: #1a1a1a;
+  --ps-color-text-secondary: #6b7280;
+  --ps-color-success: #16a34a;
+  --ps-color-warning: #f59e0b;
+  --ps-color-danger: #dc2626;
+  --ps-color-row-hover: #e6fffa;
+  --ps-color-table-stripe: #f9fafb;
+  --ps-color-border: #d8e1eb;
+
+  --ps-radius-sm: 8px;
+  --ps-radius-md: 12px;
+  --ps-radius-lg: 18px;
+  --ps-radius-xl: 22px;
+  --ps-radius-pill: 999px;
+
+  --ps-shadow-sm: 0 2px 8px rgba(11, 31, 58, 0.06);
+  --ps-shadow-md: 0 8px 20px rgba(11, 31, 58, 0.1);
+  --ps-shadow-lg: 0 14px 32px rgba(11, 31, 58, 0.14);
+
+  --ps-space-xs: 4px;
+  --ps-space-sm: 8px;
+  --ps-space-md: 12px;
+  --ps-space-lg: 16px;
+  --ps-space-xl: 20px;
+  --ps-space-2xl: 24px;
+  --ps-space-3xl: 32px;
+
+  --ps-font-family: Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --ps-font-family-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  --ps-font-size-sm: 14px;
+  --ps-font-size-md: 16px;
+  --ps-font-size-lg: 20px;
+  --ps-font-weight-medium: 500;
+  --ps-font-weight-semibold: 600;
+  --ps-font-weight-bold: 700;
+  --ps-line-height-normal: 1.5;
+}
