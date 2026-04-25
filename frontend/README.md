@@ -14,3 +14,13 @@ The React Compiler is not enabled on this template because of its impact on dev 
 ## Expanding the ESLint configuration
 
 If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+
+
+## Environment Variables
+
+The frontend requires Vite-prefixed runtime build variables:
+
+- `VITE_API_URL`: Base URL used by existing API integrations.
+- `VITE_PROBUY_PRODUCT_SEARCH_API_BASE_URL`: Base URL for the Product Search API integration (`src/integrations/probuyProductSearch.js`).
+
+For local development, copy `.env.example` to `.env` and set both values to your backend URL (for example `http://127.0.0.1:8000`).

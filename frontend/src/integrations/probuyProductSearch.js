@@ -14,10 +14,10 @@ export class ProductSearchClientError extends Error {
 }
 
 function getBaseUrl() {
-  const envBase = import.meta.env.PROBUY_PRODUCT_SEARCH_API_BASE_URL;
+  const envBase = import.meta.env.VITE_PROBUY_PRODUCT_SEARCH_API_BASE_URL;
   if (!envBase) {
     throw new ProductSearchClientError(
-      "Missing PROBUY product search API base URL configuration",
+      "Missing VITE_PROBUY_PRODUCT_SEARCH_API_BASE_URL configuration for product search API base URL",
       { code: "CONFIG_ERROR" }
     );
   }
