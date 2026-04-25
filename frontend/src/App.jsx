@@ -36,7 +36,6 @@ function App() {
   const [apiError, setApiError] = useState("");
   const [totalPages, setTotalPages] = useState(0);
   const [totalResults, setTotalResults] = useState(0);
-  const [isFilterCollapsed, setIsFilterCollapsed] = useState(false);
   const [sortOption, setSortOption] = useState("relevance");
   const [unitSizeFilter, setUnitSizeFilter] = useState("");
   const [facetDistribution, setFacetDistribution] = useState({});
@@ -475,14 +474,6 @@ function App() {
 
         {activePage === "Pricing" && (
           <section>
-            <div className="topbar">
-              <div>
-                <div className="tag">Pricing Workspace</div>
-                <h1>Product Search</h1>
-                <p>Search primary source product data now and compare pricing options in the next step.</p>
-              </div>
-            </div>
-
             <div className="panel search-hero-panel">
               <form className="search-hero-form" onSubmit={handleSearchSubmit}>
                 <label htmlFor="product-search-input" className="search-hero-label">Search products</label>
@@ -550,43 +541,35 @@ function App() {
             </div>
 
             <div className="pricing-layout modern-pricing-layout">
-              <aside className={`filter-sidebar panel ${isFilterCollapsed ? "collapsed" : ""}`}>
+              <aside className="filter-sidebar panel">
                 <div className="filter-sidebar-header">
                   <h2>Refine Results</h2>
-                  <button
-                    type="button"
-                    className="filter-collapse-btn"
-                    onClick={() => setIsFilterCollapsed((prev) => !prev)}
-                  >
-                    {isFilterCollapsed ? "Expand" : "Collapse"}
-                  </button>
                 </div>
-                {!isFilterCollapsed && (
-                  <>
-                    <p className="panel-subtext">Use quick filters to narrow product cards without changing search connectors.</p>
+                <>
+                  <p className="panel-subtext">Use quick filters to narrow product cards without changing search connectors.</p>
 
-                    {searchHistory.length > 0 && (
-                      <div className="search-history" aria-label="recent searches">
-                        <div className="search-history-label">Recent searches</div>
-                        <div className="search-history-list">
-                          {searchHistory.map((term) => (
-                            <button
-                              type="button"
-                              key={term.toLowerCase()}
-                              className="search-history-chip"
-                              onClick={() => handleHistorySelection(term)}
-                            >
-                              {term}
-                            </button>
-                          ))}
-                        </div>
+                  {searchHistory.length > 0 && (
+                    <div className="search-history" aria-label="recent searches">
+                      <div className="search-history-label">Recent searches</div>
+                      <div className="search-history-list">
+                        {searchHistory.map((term) => (
+                          <button
+                            type="button"
+                            key={term.toLowerCase()}
+                            className="search-history-chip"
+                            onClick={() => handleHistorySelection(term)}
+                          >
+                            {term}
+                          </button>
+                        ))}
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                    <label className="filter-group">
-                      <span>Brand</span>
-                      <input value={draftFilters.brand} onChange={(e) => updateFilter("brand", e.target.value)} placeholder="e.g. DEWALT" />
-                    </label>
+                  <label className="filter-group">
+                    <span>Brand</span>
+                    <input value={draftFilters.brand} onChange={(e) => updateFilter("brand", e.target.value)} placeholder="e.g. DEWALT" />
+                  </label>
 
                     <label className="filter-group">
                       <span>Manufacturer</span>
@@ -670,12 +653,11 @@ function App() {
                       </label>
                     ))}
 
-                    <button type="button" className="apply-filter-btn" onClick={applyFilters}>
-                      Apply Filters
-                    </button>
-                    {/* TODO: Unit/size field is currently UI-only until backend exposes a dedicated normalized unit facet. */}
-                  </>
-                )}
+                  <button type="button" className="apply-filter-btn" onClick={applyFilters}>
+                    Apply Filters
+                  </button>
+                  {/* TODO: Unit/size field is currently UI-only until backend exposes a dedicated normalized unit facet. */}
+                </>
               </aside>
 
               <div className="pricing-content">
