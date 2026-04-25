@@ -522,24 +522,6 @@ function App() {
               </div>
             </div>
 
-            <div className="search-controls-row panel">
-              <div className="search-controls-group">
-                <label className="filter-group">
-                  <span>Sort by</span>
-                  <select value={sortOption} onChange={(e) => setSortOption(e.target.value)} aria-label="Sort search results">
-                    <option value="relevance">Relevance</option>
-                    <option value="price_low_high">Price low to high</option>
-                    <option value="price_high_low">Price high to low</option>
-                    <option value="recently_updated">Recently updated</option>
-                  </select>
-                </label>
-              </div>
-              <div className="search-controls-note">
-                {/* TODO: Wire recently updated sorting to backend once updated timestamps are included in search payload. */}
-                Filters and sort are applied without changing existing API behavior.
-              </div>
-            </div>
-
             <div className="pricing-layout modern-pricing-layout">
               <aside className="filter-sidebar panel">
                 <div className="filter-sidebar-header">
@@ -668,6 +650,22 @@ function App() {
                 {isTyping && canSearch && (
                   <div className="info-box muted-box">Waiting for typing to pause…</div>
                 )}
+
+                <div className="results-toolbar">
+                  <div className="results-toolbar-note">
+                    {/* TODO: Wire recently updated sorting to backend once updated timestamps are included in search payload. */}
+                    Filters and sort are applied without changing existing API behavior.
+                  </div>
+                  <label className="filter-group results-toolbar-sort">
+                    <span>Sort by</span>
+                    <select value={sortOption} onChange={(e) => setSortOption(e.target.value)} aria-label="Sort search results">
+                      <option value="relevance">Relevance</option>
+                      <option value="price_low_high">Price low to high</option>
+                      <option value="price_high_low">Price high to low</option>
+                      <option value="recently_updated">Recently updated</option>
+                    </select>
+                  </label>
+                </div>
 
                 <div className="summary-grid search-summary-grid">
                   <div className="summary-card"><div className="label">Search term</div><div className="value">{query || "(type a search term)"}</div></div>
