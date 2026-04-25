@@ -360,8 +360,8 @@ body {
 .results-grid {
   margin-top: 16px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 16px;
 }
 
 .result-card {
@@ -801,6 +801,14 @@ body {
   .topbar {
     flex-direction: column;
   }
+
+  .pricing-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-sidebar {
+    position: static;
+  }
 }
 
 @media (max-width: 700px) {
@@ -829,9 +837,31 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .search-hero-input-row {
+    grid-template-columns: 1fr;
+  }
+
   .result-card-meta-row,
   .details-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 701px) and (max-width: 1023px) {
+  .results-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1439px) {
+  .results-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1440px) {
+  .results-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -922,6 +952,10 @@ body {
   grid-template-columns: 320px minmax(0, 1fr);
   gap: 20px;
   align-items: flex-start;
+}
+
+.modern-pricing-layout {
+  margin-top: 18px;
 }
 
 .filter-sidebar {
@@ -1016,14 +1050,75 @@ body {
   width: 100%;
 }
 
-.search-box-compact {
-  padding: 0;
-  border: none;
-  margin-bottom: 8px;
+.search-hero-panel {
+  margin-bottom: 16px;
 }
 
-.search-box-compact input {
+.search-hero-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.search-hero-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #27272a;
+}
+
+.search-hero-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.search-hero-input-row input {
   width: 100%;
+  border: 1px solid #d4d4d8;
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 16px;
+}
+
+.search-submit-btn {
+  width: auto;
+  min-width: 112px;
+  margin-top: 0;
+}
+
+.search-helper-text {
+  margin-top: 10px;
+  color: #52525b;
+  font-size: 13px;
+}
+
+.search-controls-row {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.search-controls-group {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.search-controls-group .filter-group {
+  margin-top: 0;
+  min-width: 220px;
+}
+
+.search-controls-note {
+  color: #71717a;
+  font-size: 13px;
+}
+
+.search-summary-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 

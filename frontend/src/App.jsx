@@ -37,6 +37,8 @@ function App() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalResults, setTotalResults] = useState(0);
   const [isFilterCollapsed, setIsFilterCollapsed] = useState(false);
+  const [sortOption, setSortOption] = useState("relevance");
+  const [unitSizeFilter, setUnitSizeFilter] = useState("");
   const [facetDistribution, setFacetDistribution] = useState({});
   const [autoPricingJobId, setAutoPricingJobId] = useState("");
   const [autoPricingRows, setAutoPricingRows] = useState([]);
@@ -136,7 +138,29 @@ function App() {
     return () => controller.abort();
   }, [activePage, canSearch, debouncedTrimmedQuery, filters, page, pageSize, saveSuccessfulSearch, setDetailsState]);
 
-  const visibleResults = results;
+  const visibleResults = useMemo(() => {
+    const resultsCopy = [...results];
+
+    if (sortOption === "price_low_high") {
+      resultsCopy.sort((left, right) => {
+        const leftPrice = typeof left.price_value === "number" ? left.price_value : Number.POSITIVE_INFINITY;
+        const rightPrice = typeof right.price_value === "number" ? right.price_value : Number.POSITIVE_INFINITY;
+        return leftPrice - rightPrice;
+      });
+      return resultsCopy;
+    }
+
+    if (sortOption === "price_high_low") {
+      resultsCopy.sort((left, right) => {
+        const leftPrice = typeof left.price_value === "number" ? left.price_value : Number.NEGATIVE_INFINITY;
+        const rightPrice = typeof right.price_value === "number" ? right.price_value : Number.NEGATIVE_INFINITY;
+        return rightPrice - leftPrice;
+      });
+      return resultsCopy;
+    }
+
+    return resultsCopy;
+  }, [results, sortOption]);
 
   const facetOptions = useMemo(() => {
     const toSortedList = (facetKey) => Object.keys(facetDistribution?.[facetKey] || {}).sort((a, b) => a.localeCompare(b));
@@ -185,6 +209,18 @@ function App() {
     setIsSuggestionOpen(value.trim().length > 0);
   }
 
+  function handleSearchSubmit(event) {
+    event.preventDefault();
+    const nextQuery = query.trim();
+    if (!nextQuery) {
+      return;
+    }
+    setQuery(nextQuery);
+    setIsSuggestionOpen(false);
+    setActiveSuggestionIndex(-1);
+    setPage(1);
+  }
+
   function handlePageSizeChange(value) {
     setPageSize(value);
     resetDetailExpansion();
@@ -197,6 +233,7 @@ function App() {
 
   function handleClearFiltersRecovery() {
     resetFilters();
+    setUnitSizeFilter("");
     resetSearchViewState();
   }
 
@@ -441,15 +478,81 @@ function App() {
             <div className="topbar">
               <div>
                 <div className="tag">Pricing Workspace</div>
-                <h1>Find products to Check pricing</h1>
-                <p>Search Primary Sources, Then View Competitor Pricing</p>
+                <h1>Product Search</h1>
+                <p>Search primary source product data now and compare pricing options in the next step.</p>
               </div>
             </div>
 
-            <div className="pricing-layout">
+            <div className="panel search-hero-panel">
+              <form className="search-hero-form" onSubmit={handleSearchSubmit}>
+                <label htmlFor="product-search-input" className="search-hero-label">Search products</label>
+                <div className="search-hero-input-row">
+                  <div className="typeahead-wrap">
+                    <input
+                      id="product-search-input"
+                      value={query}
+                      onChange={(e) => handleQueryChange(e.target.value)}
+                      onFocus={() => setIsSuggestionOpen(query.trim().length > 0)}
+                      onBlur={() => {
+                        setIsSuggestionOpen(false);
+                        setActiveSuggestionIndex(-1);
+                      }}
+                      onKeyDown={handleQueryKeyDown}
+                      placeholder="Search by model, SKU, brand, size, or description…"
+                      aria-autocomplete="list"
+                      aria-expanded={showSuggestions}
+                      aria-controls="search-typeahead-list"
+                    />
+                    {showSuggestions && (
+                      <ul id="search-typeahead-list" className="typeahead-list" role="listbox">
+                        {searchSuggestions.map((term, index) => (
+                          <li key={term.toLowerCase()} role="option" aria-selected={index === activeSuggestionIndex}>
+                            <button
+                              type="button"
+                              className={`typeahead-item ${index === activeSuggestionIndex ? "active" : ""}`}
+                              onMouseDown={(event) => {
+                                event.preventDefault();
+                                handleHistorySelection(term);
+                              }}
+                              onMouseEnter={() => setActiveSuggestionIndex(index)}
+                            >
+                              {term}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <button type="submit" className="apply-filter-btn search-submit-btn">Search</button>
+                </div>
+              </form>
+              <div className="search-helper-text">
+                Example searches: DEWALT FLEXVOLT grinder DCG418B · 3M SecureFit SF201AF · Makita circular saw blade 7-1/4
+              </div>
+            </div>
+
+            <div className="search-controls-row panel">
+              <div className="search-controls-group">
+                <label className="filter-group">
+                  <span>Sort by</span>
+                  <select value={sortOption} onChange={(e) => setSortOption(e.target.value)} aria-label="Sort search results">
+                    <option value="relevance">Relevance</option>
+                    <option value="price_low_high">Price low to high</option>
+                    <option value="price_high_low">Price high to low</option>
+                    <option value="recently_updated">Recently updated</option>
+                  </select>
+                </label>
+              </div>
+              <div className="search-controls-note">
+                {/* TODO: Wire recently updated sorting to backend once updated timestamps are included in search payload. */}
+                Filters and sort are applied without changing existing API behavior.
+              </div>
+            </div>
+
+            <div className="pricing-layout modern-pricing-layout">
               <aside className={`filter-sidebar panel ${isFilterCollapsed ? "collapsed" : ""}`}>
                 <div className="filter-sidebar-header">
-                  <h2>Filters</h2>
+                  <h2>Refine Results</h2>
                   <button
                     type="button"
                     className="filter-collapse-btn"
@@ -460,45 +563,7 @@ function App() {
                 </div>
                 {!isFilterCollapsed && (
                   <>
-                    <p className="panel-subtext">Faceted search over product index filters and dynamic attributes.</p>
-
-                    <div className="search-box search-box-compact">
-                      <div className="typeahead-wrap">
-                        <input
-                          value={query}
-                          onChange={(e) => handleQueryChange(e.target.value)}
-                          onFocus={() => setIsSuggestionOpen(query.trim().length > 0)}
-                          onBlur={() => {
-                            setIsSuggestionOpen(false);
-                            setActiveSuggestionIndex(-1);
-                          }}
-                          onKeyDown={handleQueryKeyDown}
-                          placeholder="Search by product name, model, SKU, or part number"
-                          aria-autocomplete="list"
-                          aria-expanded={showSuggestions}
-                          aria-controls="search-typeahead-list"
-                        />
-                        {showSuggestions && (
-                          <ul id="search-typeahead-list" className="typeahead-list" role="listbox">
-                            {searchSuggestions.map((term, index) => (
-                              <li key={term.toLowerCase()} role="option" aria-selected={index === activeSuggestionIndex}>
-                                <button
-                                  type="button"
-                                  className={`typeahead-item ${index === activeSuggestionIndex ? "active" : ""}`}
-                                  onMouseDown={(event) => {
-                                    event.preventDefault();
-                                    handleHistorySelection(term);
-                                  }}
-                                  onMouseEnter={() => setActiveSuggestionIndex(index)}
-                                >
-                                  {term}
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    </div>
+                    <p className="panel-subtext">Use quick filters to narrow product cards without changing search connectors.</p>
 
                     {searchHistory.length > 0 && (
                       <div className="search-history" aria-label="recent searches">
@@ -533,6 +598,16 @@ function App() {
                     </label>
 
                     <label className="filter-group">
+                      <span>Unit / size</span>
+                      <input
+                        value={unitSizeFilter}
+                        onChange={(e) => setUnitSizeFilter(e.target.value)}
+                        placeholder="e.g. 7-1/4 in, 4.5 in, 1 gal"
+                        aria-label="Filter by unit or size"
+                      />
+                    </label>
+
+                    <label className="filter-group">
                       <span>Category</span>
                       <select value={draftFilters.category} onChange={(e) => updateFilter("category", e.target.value)}>
                         <option value="">All categories</option>
@@ -553,9 +628,9 @@ function App() {
                     </label>
 
                     <label className="filter-group">
-                      <span>Stock status</span>
+                      <span>Availability</span>
                       <select value={draftFilters.stock_status} onChange={(e) => updateFilter("stock_status", e.target.value)}>
-                        <option value="">Any stock status</option>
+                        <option value="">Any availability</option>
                         {facetOptions.stock_status.map((option) => (
                           <option key={option} value={option}>{option}</option>
                         ))}
@@ -598,6 +673,7 @@ function App() {
                     <button type="button" className="apply-filter-btn" onClick={applyFilters}>
                       Apply Filters
                     </button>
+                    {/* TODO: Unit/size field is currently UI-only until backend exposes a dedicated normalized unit facet. */}
                   </>
                 )}
               </aside>
@@ -611,8 +687,9 @@ function App() {
                   <div className="info-box muted-box">Waiting for typing to pause…</div>
                 )}
 
-                <div className="summary-grid">
+                <div className="summary-grid search-summary-grid">
                   <div className="summary-card"><div className="label">Search term</div><div className="value">{query || "(type a search term)"}</div></div>
+                  <div className="summary-card"><div className="label">Sort</div><div className="value">{sortOption.replaceAll("_", " ")}</div></div>
                   <div className="summary-card"><div className="label">Page results</div><div className="value">{results.length}</div></div>
                   <div className="summary-card"><div className="label">Filtered results</div><div className="value">{visibleResults.length}</div></div>
                   <div className="summary-card"><div className="label">Priced results</div><div className="value">{analysis?.priced_results ?? 0}</div></div>
