@@ -237,7 +237,7 @@ export function SearchResultsPanel({
             const rowDetails = detailsState[String(idx)] || {};
             const isExpanded = Boolean(expandedRows[idx]);
             const productImage = typeof item.primary_image === "string" && item.primary_image.trim()
-              ? item.primary_image.trim()
+              ? item.primary_image.trim().toLowerCase()
               : (typeof item.image_url === "string" ? item.image_url.trim() : "");
             const metaRows = [
               [
