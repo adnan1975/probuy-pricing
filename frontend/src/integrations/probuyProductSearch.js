@@ -89,7 +89,8 @@ function mapSearchResult(item) {
     brand: item.brand || item.manufacturer || "",
     availability: item.availability || item.stock_status || "",
     product_url: item.product_url || item.url || "",
-    image_url: item.image_url || item.thumbnail_url || "",
+    primary_image: item.primary_image || item.image_url || item.thumbnail_url || "",
+    image_url: item.image_url || item.primary_image || item.thumbnail_url || "",
     price_text: item.price_text || (typeof item.price_value === "number" ? `$${item.price_value.toFixed(2)}` : "")
   };
 }
