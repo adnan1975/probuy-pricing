@@ -14,7 +14,6 @@ from app.connectors.kms_connector import KMSConnector
 from app.connectors.scn_connector import SCNConnector
 from app.models.normalized_result import NormalizedResult, SearchResponse
 from app.services.analysis_service import AnalysisService
-from app.services.matching_service import MatchingService
 from app.services.scn_catalog_service import SCNCatalogService, SCNItem
 
 
@@ -36,7 +35,6 @@ class SearchService:
         # Backward compatibility for tests and handlers that still use .connectors.
         self.connectors = [*self.primary_connectors, *self.secondary_connectors]
 
-        self.matching_service = MatchingService()
         self.analysis_service = AnalysisService()
         self.scn_catalog_service = SCNCatalogService()
         self.logger = logging.getLogger(__name__)
@@ -117,7 +115,7 @@ class SearchService:
             if outcome["error"]:
                 per_source_errors[connector.source_label] = outcome["error"]
 
-        ranked_results = self.matching_service.apply(query, aggregated_results)
+        ranked_results = self._rank_results(aggregated_results)
         analysis = self.analysis_service.build(
             ranked_results,
             per_source_errors=per_source_errors,
@@ -175,7 +173,7 @@ class SearchService:
             if outcome["error"]:
                 per_source_errors[connector.source_label] = outcome["error"]
 
-        ranked_results = self.matching_service.apply(query, all_results)
+        ranked_results = self._rank_results(all_results)
 
         return SearchResponse(
             query=query,
@@ -200,3 +198,7 @@ class SearchService:
         scn_items: list[SCNItem] | None = None,
     ) -> list[NormalizedResult]:
         return await connector.search(query)
+
+    @staticmethod
+    def _rank_results(results: list[NormalizedResult]) -> list[NormalizedResult]:
+        return sorted(results, key=lambda item: (item.score, item.price_value is not None), reverse=True)

@@ -49,4 +49,8 @@ class SCNConnector(BaseConnector):
                 )
             )
 
-        return results
+        filtered_results, dropped_low_match = self.apply_query_match_filter(query, results)
+        if dropped_low_match > 0:
+            filter_warning = f"Filtered {dropped_low_match} SCN result(s) below {self.minimum_match_percent}% query match."
+            self.last_warning = f"{self.last_warning} {filter_warning}".strip() if self.last_warning else filter_warning
+        return filtered_results
