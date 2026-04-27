@@ -6,6 +6,7 @@ from urllib.parse import quote_plus
 
 import requests
 
+from app.connectors.http_client import get_shared_http_client
 from app.connectors.secondary_api_connector import SecondaryAPIConnector
 from app.models.normalized_result import NormalizedResult
 
@@ -68,14 +69,12 @@ class KMSConnector(SecondaryAPIConnector):
 
     def download_payload(self, request: dict[str, Any]) -> dict[str, Any]:
         url = request["url"]
-        response = requests.get(
+        return get_shared_http_client().get_json(
             url,
             params=request.get("params"),
             headers=request.get("headers"),
             timeout=request.get("timeout", self.timeout_seconds),
         )
-        response.raise_for_status()
-        return response.json()
 
     def extract_results(self, query: str, payload: Any) -> list[NormalizedResult]:
         if not isinstance(payload, dict):
