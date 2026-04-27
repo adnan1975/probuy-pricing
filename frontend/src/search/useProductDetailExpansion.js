@@ -2,6 +2,19 @@ import { useMemo, useState } from "react";
 import { detailConnectorConfigs } from "./constants";
 import { fetchDetailResults } from "./searchApi";
 
+function chooseBestCandidate(candidates) {
+  return candidates
+    .filter((candidate) => candidate?.offer)
+    .sort((left, right) => {
+      if ((right.matchPercentage || 0) !== (left.matchPercentage || 0)) {
+        return (right.matchPercentage || 0) - (left.matchPercentage || 0);
+      }
+      const leftPrice = typeof left.offer?.price_value === "number" ? left.offer.price_value : Number.POSITIVE_INFINITY;
+      const rightPrice = typeof right.offer?.price_value === "number" ? right.offer.price_value : Number.POSITIVE_INFINITY;
+      return leftPrice - rightPrice;
+    })[0] || null;
+}
+
 export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery }) {
   const [detailsState, setDetailsState] = useState({});
   const [expandedRows, setExpandedRows] = useState({});
@@ -90,6 +103,7 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
           loaded: false,
           loadingAll: true,
           offersBySource: existing.offersBySource || {},
+          matchBySource: existing.matchBySource || {},
           errorsBySource: existing.errorsBySource || {},
           statusBySource: connectorsToLoad.reduce(
             (acc, config) => ({
@@ -121,6 +135,8 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
 
       let resolvedOffer = null;
       let resolvedError = null;
+      let resolvedMatch = null;
+      const evaluatedCandidates = [];
 
       try {
         for (let idx = 0; idx < connectorQueries.length; idx += 1) {
@@ -133,20 +149,50 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
             step: `Searching for SKU ${candidate}`
           });
 
-          const { offer, error } = await fetchDetailResults({
+          const { offer, comparison, comparedResults = [], error } = await fetchDetailResults({
             apiUrl,
             endpoint: connector.endpoint,
-            query: candidate
+            query: candidate,
+            comparisonTarget: rowItem,
+            preselectBest: true
           });
 
-          if (offer) {
+          if (Array.isArray(comparedResults) && comparedResults.length > 0) {
+            evaluatedCandidates.push(...comparedResults);
+            const bestSoFar = chooseBestCandidate(evaluatedCandidates);
+            if (bestSoFar) {
+              updateConnectorStatus({
+                rowKey,
+                source: connector.source,
+                step: `Evaluated ${evaluatedCandidates.length} products; best match ${bestSoFar.matchPercentage}%`
+              });
+            }
+          }
+
+          if (offer && comparison) {
             resolvedOffer = offer;
+            resolvedMatch = {
+              matchPercentage: comparison.matchPercentage,
+              matchedAttributes: comparison.matchedAttributes || []
+            };
             resolvedError = null;
+          }
+
+          const bestEvaluated = chooseBestCandidate(evaluatedCandidates);
+          if (bestEvaluated) {
+            resolvedOffer = bestEvaluated.offer;
+            resolvedMatch = {
+              matchPercentage: bestEvaluated.matchPercentage || 0,
+              matchedAttributes: bestEvaluated.matchedAttributes || []
+            };
+          }
+
+          if (offer) {
             updateConnectorStatus({
               rowKey,
               source: connector.source,
               nextState: "success",
-              step: `Success: price found for ${candidate}`
+              step: `Success: evaluated ${evaluatedCandidates.length} products; best match ${resolvedMatch?.matchPercentage || 0}%`
             });
             break;
           }
@@ -188,6 +234,10 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
                 ...(existing.offersBySource || {}),
                 [connector.source]: resolvedOffer
               },
+              matchBySource: {
+                ...(existing.matchBySource || {}),
+                [connector.source]: resolvedMatch
+              },
               errorsBySource: {
                 ...(existing.errorsBySource || {}),
                 [connector.source]: resolvedError
@@ -212,6 +262,10 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
             ...(prev[rowKey] || {}),
             offersBySource: {
               ...((prev[rowKey] || {}).offersBySource || {}),
+              [connector.source]: null
+            },
+            matchBySource: {
+              ...((prev[rowKey] || {}).matchBySource || {}),
               [connector.source]: null
             },
             errorsBySource: {

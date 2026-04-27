@@ -1,5 +1,6 @@
 import { buildDetailRequestBody } from "./queryBuilder";
 import { searchProducts } from "../integrations/probuyProductSearch";
+import { compareProducts } from "./productCompare";
 
 /**
  * @param {{query: string, page: number, pageSize: number, filters?: Record<string, unknown>, signal?: AbortSignal}} args
@@ -32,9 +33,15 @@ export async function fetchStep1Results({ query, page, pageSize, filters = {}, s
 }
 
 /**
- * @param {{apiUrl: string, endpoint: string, query: string}} args
+ * @param {{apiUrl: string, endpoint: string, query: string, comparisonTarget?: Record<string, unknown>, preselectBest?: boolean}} args
  */
-export async function fetchDetailResults({ apiUrl, endpoint, query }) {
+export async function fetchDetailResults({
+  apiUrl,
+  endpoint,
+  query,
+  comparisonTarget = null,
+  preselectBest = false
+}) {
   const response = await fetch(`${apiUrl}/search/${endpoint}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -43,11 +50,48 @@ export async function fetchDetailResults({ apiUrl, endpoint, query }) {
 
   const payload = response.ok ? await response.json() : null;
   const connectorResults = Array.isArray(payload?.results) ? payload.results : [];
-  const priced = connectorResults.find((item) => typeof item.price_value === "number") || null;
   const connectorError = payload?.error || (!response.ok ? `Backend returned ${response.status}` : null);
 
+  const comparedResults = connectorResults.map((item) => {
+    const comparison = comparisonTarget ? compareProducts(comparisonTarget, item, query) : null;
+    return {
+      offer: item,
+      matchPercentage: comparison?.matchPercentage ?? 0,
+      matchedAttributes: comparison?.matchedAttributes ?? [],
+      attributeScores: comparison?.attributeScores ?? {}
+    };
+  });
+
+  if (!preselectBest) {
+    return {
+      offers: connectorResults,
+      comparedResults,
+      error: connectorError
+    };
+  }
+
+  const bestCandidate = comparedResults
+    .slice()
+    .sort((left, right) => {
+      if (right.matchPercentage !== left.matchPercentage) {
+        return right.matchPercentage - left.matchPercentage;
+      }
+      const leftPrice = typeof left.offer?.price_value === "number" ? left.offer.price_value : Number.POSITIVE_INFINITY;
+      const rightPrice = typeof right.offer?.price_value === "number" ? right.offer.price_value : Number.POSITIVE_INFINITY;
+      return leftPrice - rightPrice;
+    })[0] || null;
+
   return {
-    offer: priced,
+    offer: bestCandidate?.offer || null,
+    comparison: bestCandidate
+      ? {
+          matchPercentage: bestCandidate.matchPercentage,
+          matchedAttributes: bestCandidate.matchedAttributes,
+          attributeScores: bestCandidate.attributeScores
+        }
+      : null,
+    offers: connectorResults,
+    comparedResults,
     error: connectorError
   };
 }
