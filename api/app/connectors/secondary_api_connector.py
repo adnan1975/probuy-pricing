@@ -53,13 +53,19 @@ class SecondaryAPIConnector(BaseConnector, ABC):
         try:
             payload = await asyncio.to_thread(self.download_payload, request)
             results = self._extract_results(normalized_query, payload)
+            results, dropped_low_match = self.apply_query_match_filter(normalized_query, results)
 
             if results:
                 partial_count = self._count_partial_price_results(results)
+                warning_parts: list[str] = []
                 if partial_count > 0:
-                    self.last_warning = (
-                        f"Partial parse: {partial_count} result(s) had no numeric price value."
+                    warning_parts.append(f"Partial parse: {partial_count} result(s) had no numeric price value.")
+                if dropped_low_match > 0:
+                    warning_parts.append(
+                        f"Filtered {dropped_low_match} result(s) below {self.minimum_match_percent}% query match."
                     )
+                if warning_parts:
+                    self.last_warning = " ".join(warning_parts)
                 self.persist_results(normalized_query, results)
                 self.logger.info(
                     "%s api search completed query=%s results=%s",
@@ -68,7 +74,13 @@ class SecondaryAPIConnector(BaseConnector, ABC):
                     len(results),
                 )
             else:
-                self.last_warning = "No API results were parsed from response payload."
+                if dropped_low_match > 0:
+                    self.last_warning = (
+                        "No API results met connector-level match threshold "
+                        f"({self.minimum_match_percent}%+ required)."
+                    )
+                else:
+                    self.last_warning = "No API results were parsed from response payload."
                 self.logger.warning(
                     "%s api search completed with no results query=%s",
                     self.__class__.__name__,

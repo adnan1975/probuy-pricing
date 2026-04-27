@@ -67,11 +67,19 @@ class SecondaryScrapyConnector(BaseConnector, ABC):
             )
 
             results = self._extract_results(normalized_query, html)
+            results, dropped_low_match = self.apply_query_match_filter(normalized_query, results)
 
             if results:
                 partial_count = self._count_partial_price_results(results)
+                warning_parts: list[str] = []
                 if partial_count > 0:
-                    self.last_warning = f"Partial parse: {partial_count} result(s) had no numeric price value."
+                    warning_parts.append(f"Partial parse: {partial_count} result(s) had no numeric price value.")
+                if dropped_low_match > 0:
+                    warning_parts.append(
+                        f"Filtered {dropped_low_match} result(s) below {self.minimum_match_percent}% query match."
+                    )
+                if warning_parts:
+                    self.last_warning = " ".join(warning_parts)
                 self.persist_results(normalized_query, results)
                 self.logger.info(
                     "%s search completed query=%s results=%s",
@@ -80,7 +88,13 @@ class SecondaryScrapyConnector(BaseConnector, ABC):
                     len(results),
                 )
             else:
-                self.last_warning = "No visible listings were parsed from search page."
+                if dropped_low_match > 0:
+                    self.last_warning = (
+                        "No listings met connector-level match threshold "
+                        f"({self.minimum_match_percent}%+ required)."
+                    )
+                else:
+                    self.last_warning = "No visible listings were parsed from search page."
                 self.logger.warning(
                     "%s search completed with no results query=%s url=%s",
                     self.__class__.__name__,
