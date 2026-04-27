@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { detailConnectorConfigs } from "./constants";
+import { evaluateOfferPolicy } from "./matchPolicy";
 import { fetchDetailResults } from "./searchApi";
 
 function chooseBestCandidate(candidates) {
@@ -170,29 +171,38 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
           }
 
           if (offer && comparison) {
+            const policy = evaluateOfferPolicy(connector.source, comparison);
             resolvedOffer = offer;
             resolvedMatch = {
-              matchPercentage: comparison.matchPercentage,
-              matchedAttributes: comparison.matchedAttributes || []
+              matchPercentage: policy.matchPercentage,
+              matchedAttributes: comparison.matchedAttributes || [],
+              isBelowThreshold: policy.isBelowThreshold,
+              shouldExcludeFromSuggestedPriceByDefault: policy.shouldExcludeFromSuggestedPriceByDefault,
+              thresholdText: policy.thresholdText
             };
             resolvedError = null;
           }
 
           const bestEvaluated = chooseBestCandidate(evaluatedCandidates);
           if (bestEvaluated) {
+            const policy = evaluateOfferPolicy(connector.source, bestEvaluated);
             resolvedOffer = bestEvaluated.offer;
             resolvedMatch = {
-              matchPercentage: bestEvaluated.matchPercentage || 0,
-              matchedAttributes: bestEvaluated.matchedAttributes || []
+              matchPercentage: policy.matchPercentage,
+              matchedAttributes: bestEvaluated.matchedAttributes || [],
+              isBelowThreshold: policy.isBelowThreshold,
+              shouldExcludeFromSuggestedPriceByDefault: policy.shouldExcludeFromSuggestedPriceByDefault,
+              thresholdText: policy.thresholdText
             };
           }
 
           if (offer) {
+            const isDeprioritized = Boolean(resolvedMatch?.isBelowThreshold);
             updateConnectorStatus({
               rowKey,
               source: connector.source,
               nextState: "success",
-              step: `Success: evaluated ${evaluatedCandidates.length} products; best match ${resolvedMatch?.matchPercentage || 0}%`
+              step: `Success: evaluated ${evaluatedCandidates.length} products; best match ${resolvedMatch?.matchPercentage || 0}%${isDeprioritized ? " (deprioritized for suggested price)" : ""}`
             });
             break;
           }

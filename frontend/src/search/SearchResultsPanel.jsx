@@ -317,6 +317,10 @@ export function SearchResultsPanel({
                         const comparison = rowDetails.matchBySource?.[connector.source] || null;
                         const statusMessage = offer?.availability
                           || (error ? `Error: ${error}` : connectorStatus.state === "failed" ? "Connector failed to return price" : "No availability update");
+                        const mismatchMessage = comparison?.isBelowThreshold ? comparison.thresholdText : "";
+                        const whyMessage = comparison?.isBelowThreshold
+                          ? "Why: KMS offer is shown for transparency but excluded from suggested price by default."
+                          : "";
                         return (
                           <div className="details-card" key={connector.source}>
                             <div className="table-strong">{connector.source}</div>
@@ -328,6 +332,12 @@ export function SearchResultsPanel({
                             <div className="table-sub">
                               {statusMessage}
                             </div>
+                            {mismatchMessage && (
+                              <div className="table-sub">{mismatchMessage}</div>
+                            )}
+                            {whyMessage && (
+                              <div className="table-sub">{whyMessage}</div>
+                            )}
                             <ProductCompareCard comparison={comparison} />
                             {connectorStatus.steps.length > 0 && (
                               <div className="status-list">

@@ -48,3 +48,15 @@ export const detailConnectorConfigs = [
 export const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
 export const MIN_QUERY_LENGTH = 2;
+
+/**
+ * Source-specific match policies used to decide whether competitor offers should
+ * influence suggested price recommendations by default.
+ */
+export const SOURCE_MATCH_THRESHOLD_POLICY = {
+  "KMS Tools": {
+    minAcceptableMatchPercentage: 60,
+    belowThresholdStatus: "Low-confidence mismatch",
+    deprioritizedWhy: "KMS offer kept for transparency but excluded from suggested price (below 60% match)."
+  }
+};
