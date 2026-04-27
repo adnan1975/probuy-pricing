@@ -17,6 +17,24 @@ class KMSConnector(SecondaryAPIConnector):
     currency = "CAD"
     site_id = "skg4w4"
     base_domain = "https://www.kmstools.com"
+    min_reasonable_price = 0.01
+    max_reasonable_price = 100000.0
+
+    # Searchspring payloads can include multiple price-like fields at once.
+    # We prefer live/sale values over merchandising MSRP/list anchors.
+    price_field_precedence: tuple[str, ...] = (
+        "final_price",
+        "finalPrice",
+        "sale_price",
+        "salePrice",
+        "actual_price",
+        "price",
+        "regular_price",
+        "price_value",
+        "map_price",
+        "mapPrice",
+        "msrp",
+    )
 
     def build_request(self, query: str) -> dict[str, Any]:
         user_id = str(uuid.uuid4())
@@ -91,8 +109,11 @@ class KMSConnector(SecondaryAPIConnector):
             brand = self.normalize_ws(item.get("brand") or item.get("manufacturer")) or self.default_brand_from_title(
                 title
             )
-            price_value = self._extract_price_value(item)
-            price_text = f"${price_value:.2f}" if price_value is not None else "Price unavailable"
+            price_decision = self._select_best_price_candidate(item)
+            price_value = price_decision["price_value"]
+            price_text = price_decision["price_text"] or (
+                f"${price_value:.2f}" if price_value is not None else "Price unavailable"
+            )
 
             if not title or not product_url:
                 continue
@@ -121,24 +142,60 @@ class KMSConnector(SecondaryAPIConnector):
 
         return results
 
-    def _extract_price_value(self, item: dict[str, Any]) -> float | None:
-        candidate_fields = [
-            "final_price",
-            "price",
-            "regular_price",
-            "msrp",
-            "sale_price",
-            "salePrice",
-            "map_price",
-            "mapPrice",
-            "finalPrice",
-            "actual_price",
-            "price_value",
-        ]
+    def _select_best_price_candidate(self, item: dict[str, Any]) -> dict[str, Any]:
+        best: dict[str, Any] | None = None
+        for precedence, field in enumerate(self.price_field_precedence):
+            raw_value = item.get(field)
+            if raw_value in (None, ""):
+                continue
 
-        for field in candidate_fields:
-            parsed = self.coerce_price(item.get(field))
-            if parsed is not None:
-                return parsed
+            parsed_value = self.coerce_price(raw_value)
+            is_valid = self._is_reasonable_price(parsed_value)
+            candidate = {
+                "field": field,
+                "precedence": precedence,
+                "raw_value": raw_value,
+                "parsed_value": parsed_value,
+                "is_valid": is_valid,
+            }
 
-        return None
+            if not is_valid:
+                self.logger.debug(
+                    "KMS price candidate rejected field=%s raw=%r parsed=%r",
+                    field,
+                    raw_value,
+                    parsed_value,
+                )
+                continue
+
+            if best is None or precedence < best["precedence"]:
+                best = candidate
+
+        if best is not None:
+            self.logger.debug(
+                "KMS selected price field=%s raw=%r parsed=%s currency=%s",
+                best["field"],
+                best["raw_value"],
+                best["parsed_value"],
+                self.currency,
+            )
+            return {
+                "price_value": best["parsed_value"],
+                "price_text": self._raw_price_text(best["raw_value"]),
+                "raw_field": best["field"],
+            }
+
+        self.logger.debug("KMS price unavailable; no valid candidates in payload keys=%s", list(item.keys()))
+        return {"price_value": None, "price_text": None, "raw_field": None}
+
+    def _raw_price_text(self, raw_value: Any) -> str | None:
+        if raw_value in (None, ""):
+            return None
+        if isinstance(raw_value, str):
+            return raw_value.strip() or None
+        return str(raw_value)
+
+    def _is_reasonable_price(self, value: float | None) -> bool:
+        if value is None:
+            return False
+        return self.min_reasonable_price <= value <= self.max_reasonable_price
