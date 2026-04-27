@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+from typing import Any
 
+from app.config import settings
 from app.connectors.amazonca_connector import AmazonCAConnector
 from app.connectors.base import BaseConnector
 from app.connectors.canadiantire_connector import CanadianTireConnector
@@ -39,6 +42,35 @@ class SearchService:
         self.logger = logging.getLogger(__name__)
         self._connector_lookup = self._build_connector_lookup(self.connectors)
 
+    async def _run_connector_search(
+        self,
+        connector: BaseConnector,
+        query: str,
+        semaphore: asyncio.Semaphore,
+        failure_log_message: str,
+    ) -> dict[str, Any]:
+        async with semaphore:
+            try:
+                results = await connector.search(query)
+                return {
+                    "connector": connector,
+                    "results": results,
+                    "warning": getattr(connector, "last_warning", None),
+                    "error": None,
+                }
+            except Exception as exc:  # noqa: BLE001
+                self.logger.error(
+                    failure_log_message,
+                    extra={"source": connector.source, "query": query},
+                    exc_info=True,
+                )
+                return {
+                    "connector": connector,
+                    "results": [],
+                    "warning": None,
+                    "error": str(exc),
+                }
+
     @staticmethod
     def _build_connector_lookup(connectors: list[BaseConnector]) -> dict[str, BaseConnector]:
         lookup: dict[str, BaseConnector] = {}
@@ -64,16 +96,26 @@ class SearchService:
         per_source_errors: dict[str, str] = {}
         per_source_warnings: dict[str, str] = {}
         aggregated_results: list[NormalizedResult] = []
+        semaphore = asyncio.Semaphore(settings.connector_max_concurrency)
 
-        for connector in self.primary_connectors:
-            try:
-                results = await connector.search(query)
-                aggregated_results.extend(results)
-                if getattr(connector, "last_warning", None):
-                    per_source_warnings[connector.source_label] = connector.last_warning
-            except Exception as exc:  # noqa: BLE001
-                per_source_errors[connector.source_label] = str(exc)
-                self.logger.error("Primary connector search failed", extra={"source": connector.source, "query": query}, exc_info=True)
+        connector_outcomes = await asyncio.gather(
+            *(
+                self._run_connector_search(
+                    connector=connector,
+                    query=query,
+                    semaphore=semaphore,
+                    failure_log_message="Primary connector search failed",
+                )
+                for connector in self.primary_connectors
+            )
+        )
+        for outcome in connector_outcomes:
+            connector = outcome["connector"]
+            aggregated_results.extend(outcome["results"])
+            if outcome["warning"]:
+                per_source_warnings[connector.source_label] = outcome["warning"]
+            if outcome["error"]:
+                per_source_errors[connector.source_label] = outcome["error"]
 
         ranked_results = self.matching_service.apply(query, aggregated_results)
         analysis = self.analysis_service.build(
@@ -112,20 +154,26 @@ class SearchService:
         per_source_errors: dict[str, str] = {}
         per_source_warnings: dict[str, str] = {}
         all_results: list[NormalizedResult] = []
+        semaphore = asyncio.Semaphore(settings.connector_max_concurrency)
 
-        for connector in self.secondary_connectors:
-            try:
-                connector_results = await connector.search(query)
-                all_results.extend(connector_results)
-                if getattr(connector, "last_warning", None):
-                    per_source_warnings[connector.source_label] = connector.last_warning
-            except Exception as exc:  # noqa: BLE001
-                per_source_errors[connector.source_label] = str(exc)
-                self.logger.error(
-                    "Secondary connector search failed",
-                    extra={"source": connector.source, "query": query},
-                    exc_info=True,
+        connector_outcomes = await asyncio.gather(
+            *(
+                self._run_connector_search(
+                    connector=connector,
+                    query=query,
+                    semaphore=semaphore,
+                    failure_log_message="Secondary connector search failed",
                 )
+                for connector in self.secondary_connectors
+            )
+        )
+        for outcome in connector_outcomes:
+            connector = outcome["connector"]
+            all_results.extend(outcome["results"])
+            if outcome["warning"]:
+                per_source_warnings[connector.source_label] = outcome["warning"]
+            if outcome["error"]:
+                per_source_errors[connector.source_label] = outcome["error"]
 
         ranked_results = self.matching_service.apply(query, all_results)
 
