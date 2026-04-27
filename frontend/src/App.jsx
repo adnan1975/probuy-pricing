@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
-import { API_URL } from "./search/constants";
+import { API_URL, SOURCE_MATCH_THRESHOLD_POLICY } from "./search/constants";
 import { fetchAutomatedPricingStatus, fetchStep1Results, openAutomatedPricingStream, startAutomatedPricing } from "./search/searchApi";
 import { SearchResultsPanel } from "./search/SearchResultsPanel";
 import { useFilterState } from "./search/useFilterState";
@@ -37,6 +37,7 @@ function App() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalResults, setTotalResults] = useState(0);
   const [sortOption, setSortOption] = useState("relevance");
+  const [includeLowConfidenceKmsInSuggestedPrice, setIncludeLowConfidenceKmsInSuggestedPrice] = useState(false);
   const [unitSizeFilter, setUnitSizeFilter] = useState("");
   const [facetDistribution, setFacetDistribution] = useState({});
   const [autoPricingJobId, setAutoPricingJobId] = useState("");
@@ -179,9 +180,28 @@ function App() {
   }, [facetDistribution]);
 
   function formatSuggestedPrice(item, rowIndex) {
-    const relatedOffers = relatedOffersByRow[rowIndex] || [];
-    const pricedValues = [item, ...relatedOffers]
-      .map((offer) => offer.price_value)
+    const rowDetails = detailsState[String(rowIndex)] || {};
+    const offersBySource = rowDetails.offersBySource || {};
+    const matchBySource = rowDetails.matchBySource || {};
+    const kmsThreshold = SOURCE_MATCH_THRESHOLD_POLICY["KMS Tools"]?.minAcceptableMatchPercentage || 0;
+
+    const eligibleConnectorOffers = Object.entries(offersBySource)
+      .filter(([, offer]) => Boolean(offer))
+      .filter(([source]) => {
+        if (source !== "KMS Tools") {
+          return true;
+        }
+        if (includeLowConfidenceKmsInSuggestedPrice) {
+          return true;
+        }
+        const match = matchBySource[source];
+        const matchPercentage = Number(match?.matchPercentage) || 0;
+        return matchPercentage >= kmsThreshold;
+      })
+      .map(([, offer]) => offer);
+
+    const pricedValues = [item, ...eligibleConnectorOffers]
+      .map((offer) => offer?.price_value)
       .filter((value) => typeof value === "number");
     const connectorMin = pricedValues.length > 0 ? Math.min(...pricedValues) : null;
     const suggestedPriceValue = typeof connectorMin === "number"
@@ -664,6 +684,15 @@ function App() {
                       <option value="price_high_low">Price high to low</option>
                       <option value="recently_updated">Recently updated</option>
                     </select>
+                  </label>
+                  <label className="filter-group results-toolbar-sort">
+                    <span>Suggested price policy</span>
+                    <input
+                      type="checkbox"
+                      checked={includeLowConfidenceKmsInSuggestedPrice}
+                      onChange={(e) => setIncludeLowConfidenceKmsInSuggestedPrice(e.target.checked)}
+                    />
+                    Include low-confidence KMS offers
                   </label>
                 </div>
 

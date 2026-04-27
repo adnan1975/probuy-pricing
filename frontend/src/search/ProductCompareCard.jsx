@@ -23,7 +23,9 @@ export function ProductCompareCard({ comparison }) {
   const matchedAttributes = Array.isArray(comparison?.matchedAttributes)
     ? comparison.matchedAttributes.filter(Boolean).slice(0, 3)
     : [];
-  const confidenceBand = getConfidenceBand(matchPercentage);
+  const confidenceBand = comparison?.isBelowThreshold
+    ? { label: "Low-confidence mismatch", cssModifier: "low" }
+    : getConfidenceBand(matchPercentage);
 
   return (
     <div className={`product-compare-card ${confidenceBand.cssModifier}`}>
