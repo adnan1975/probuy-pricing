@@ -83,6 +83,15 @@ function mapSearchResult(item) {
   const normalizedPrimaryImage = typeof item.primary_image === "string"
     ? item.primary_image.toLowerCase()
     : "";
+  const hasListPrice = item.list_price !== undefined && item.list_price !== null && item.list_price !== "";
+  const listPriceCandidate = typeof item.list_price === "number"
+    ? item.list_price
+    : Number.parseFloat(String(item.list_price).replace(/[^0-9.-]/g, ""));
+  const listPriceValue = Number.isFinite(listPriceCandidate) ? listPriceCandidate : undefined;
+  const mappedPriceValue = listPriceValue ?? item.price_value;
+  const mappedPriceText = typeof item.price_text === "string" && item.price_text.trim()
+    ? item.price_text
+    : (typeof mappedPriceValue === "number" ? `$${mappedPriceValue.toFixed(2)}` : "");
 
   return {
     ...item,
@@ -95,7 +104,9 @@ function mapSearchResult(item) {
     product_url: item.product_url || item.url || "",
     primary_image: normalizedPrimaryImage || item.image_url || item.thumbnail_url || "",
     image_url: item.image_url || item.primary_image || item.thumbnail_url || "",
-    price_text: item.price_text || (typeof item.price_value === "number" ? `$${item.price_value.toFixed(2)}` : "")
+    price_value: mappedPriceValue,
+    price_text: mappedPriceText,
+    list_price: hasListPrice ? item.list_price : undefined
   };
 }
 
