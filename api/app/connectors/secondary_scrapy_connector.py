@@ -10,6 +10,7 @@ import requests
 from scrapy import Selector
 
 from app.connectors.base import BaseConnector
+from app.connectors.http_client import get_shared_http_client
 from app.models.normalized_result import NormalizedResult
 
 
@@ -113,17 +114,13 @@ class SecondaryScrapyConnector(BaseConnector, ABC):
 
     def download_html(self, url: str) -> str:
         self.logger.debug("Downloading HTML from url=%s", url)
-        response = requests.get(
+        html = get_shared_http_client().get_text(
             url,
-            headers={
-                "User-Agent": self.user_agent,
-                "Accept-Language": "en-CA,en-US;q=0.9,en;q=0.8",
-            },
+            headers={"User-Agent": self.user_agent},
             timeout=self.timeout_seconds,
         )
-        response.raise_for_status()
-        self.logger.debug("Downloaded HTML successfully url=%s status=%s", url, response.status_code)
-        return response.text
+        self.logger.debug("Downloaded HTML successfully url=%s", url)
+        return html
 
     def _extract_results(self, query: str, html: str) -> list[NormalizedResult]:
         selector = Selector(text=html)
