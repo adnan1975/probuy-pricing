@@ -69,6 +69,9 @@ class SecondaryScrapyConnector(BaseConnector, ABC):
             results = self._extract_results(normalized_query, html)
 
             if results:
+                partial_count = self._count_partial_price_results(results)
+                if partial_count > 0:
+                    self.last_warning = f"Partial parse: {partial_count} result(s) had no numeric price value."
                 self.persist_results(normalized_query, results)
                 self.logger.info(
                     "%s search completed query=%s results=%s",
@@ -304,6 +307,18 @@ class SecondaryScrapyConnector(BaseConnector, ABC):
         if maybe_relative_url.startswith("/"):
             return f"{base_url.rstrip('/')}{maybe_relative_url}"
         return f"{base_url.rstrip('/')}/{maybe_relative_url.lstrip('/')}"
+
+    @staticmethod
+    def _count_partial_price_results(results: list[NormalizedResult]) -> int:
+        count = 0
+        for result in results:
+            if result.price_value is not None:
+                continue
+            price_text = (result.price_text or "").strip().lower()
+            if not price_text or price_text == "price unavailable":
+                continue
+            count += 1
+        return count
 
     @abstractmethod
     def base_url(self) -> str:
