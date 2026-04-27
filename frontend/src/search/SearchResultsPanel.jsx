@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { detailConnectorConfigs, PAGE_SIZE_OPTIONS } from "./constants";
 import loaderImage from "../assets/results-loader.svg";
+import ProductCompareCard from "./ProductCompareCard";
 
 function buildWebpFallbackUrl(imageUrl) {
   if (!imageUrl) return "";
@@ -313,6 +314,7 @@ export function SearchResultsPanel({
                         const isLoading = Boolean(rowDetails.loadingBySource?.[connector.source]);
                         const error = rowDetails.errorsBySource?.[connector.source];
                         const connectorStatus = rowDetails.statusBySource?.[connector.source] || { steps: [], state: "idle" };
+                        const comparison = rowDetails.matchBySource?.[connector.source] || null;
                         const statusMessage = offer?.availability
                           || (error ? `Error: ${error}` : connectorStatus.state === "failed" ? "Connector failed to return price" : "No availability update");
                         return (
@@ -326,6 +328,7 @@ export function SearchResultsPanel({
                             <div className="table-sub">
                               {statusMessage}
                             </div>
+                            <ProductCompareCard comparison={comparison} />
                             {connectorStatus.steps.length > 0 && (
                               <div className="status-list">
                                 Status: {connectorStatus.steps[connectorStatus.steps.length - 1]}
