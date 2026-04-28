@@ -64,6 +64,11 @@ class Settings:
     )
     semantic_match_enabled: bool = _to_bool(os.getenv("SEMANTIC_MATCH_ENABLED"), True)
     semantic_match_threshold: float = _to_float(os.getenv("SEMANTIC_MATCH_THRESHOLD"), 0.45)
+    semantic_second_pass_enabled: bool = _to_bool(os.getenv("SEMANTIC_SECOND_PASS_ENABLED"), True)
+    semantic_max_evaluations_per_request: int = max(0, _to_int(os.getenv("SEMANTIC_MAX_EVALUATIONS_PER_REQUEST"), 15))
+    semantic_ambiguous_min_score: int = max(0, min(100, _to_int(os.getenv("SEMANTIC_AMBIGUOUS_MIN_SCORE"), 55)))
+    semantic_ambiguous_max_score: int = max(0, min(100, _to_int(os.getenv("SEMANTIC_AMBIGUOUS_MAX_SCORE"), 80)))
+    semantic_warning_skip_threshold: int = max(0, _to_int(os.getenv("SEMANTIC_WARNING_SKIP_THRESHOLD"), 3))
 
 
 settings = Settings()
