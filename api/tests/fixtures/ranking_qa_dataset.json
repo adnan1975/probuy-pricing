@@ -1,0 +1,35 @@
+[
+  {
+    "query": "DEWALT FLEXVOLT grinder DCG418B",
+    "relevant": ["DCG418B", "DCG418"],
+    "non_relevant": ["DCF887", "DCS356"],
+    "candidates": [
+      {"title": "DEWALT 60V MAX FLEXVOLT Grinder Bare Tool DCG418B", "sku": "DCG418B"},
+      {"title": "DEWALT FLEXVOLT Angle Grinder DCG418", "sku": "DCG418"},
+      {"title": "DEWALT Impact Driver DCF887B", "sku": "DCF887B"},
+      {"title": "DEWALT Oscillating Multi-Tool DCS356", "sku": "DCS356"}
+    ]
+  },
+  {
+    "query": "3M SecureFit SF201AF safety glasses",
+    "relevant": ["SF201AF"],
+    "non_relevant": ["SF401", "H9A"],
+    "candidates": [
+      {"title": "3M SecureFit Protective Eyewear SF201AF, Anti-Fog", "sku": "SF201AF"},
+      {"title": "3M SecureFit Safety Glasses SF401AF", "sku": "SF401AF"},
+      {"title": "3M Hard Hat Adapter H9A", "sku": "H9A"},
+      {"title": "Uvex A700 safety glasses", "sku": "A700"}
+    ]
+  },
+  {
+    "query": "Milwaukee M18 Fuel hammer drill 2904-20",
+    "relevant": ["2904-20", "290420"],
+    "non_relevant": ["2804-20", "2853-20"],
+    "candidates": [
+      {"title": "Milwaukee M18 FUEL 1/2 in Hammer Drill/Driver 2904-20", "sku": "2904-20"},
+      {"title": "Milwaukee M18 Hammer Drill 2804-20", "sku": "2804-20"},
+      {"title": "Milwaukee M18 Impact Driver 2853-20", "sku": "2853-20"},
+      {"title": "Makita 18V Hammer Drill XPH14Z", "sku": "XPH14Z"}
+    ]
+  }
+]
