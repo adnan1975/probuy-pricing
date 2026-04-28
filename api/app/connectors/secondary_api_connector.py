@@ -20,6 +20,7 @@ class SecondaryAPIConnector(BaseConnector, ABC):
     currency = "CAD"
     timeout_seconds = 10
     max_results = 20
+    max_query_variants = 3
 
     user_agent = (
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -41,53 +42,71 @@ class SecondaryAPIConnector(BaseConnector, ABC):
 
         self.last_warning = None
         self.last_error = None
-        request = self.build_request(normalized_query)
-
-        self.logger.info(
-            "%s api search started query=%s request=%s",
-            self.__class__.__name__,
-            normalized_query,
-            self._loggable_request(request),
-        )
+        variants = self.build_query_variants(normalized_query)[: self.max_query_variants]
+        if not variants:
+            variants = [("fallback", normalized_query)]
 
         try:
-            payload = await asyncio.to_thread(self.download_payload, request)
-            results = self._extract_results(normalized_query, payload)
-            results, dropped_low_match = self.apply_query_match_filter(normalized_query, results)
+            variant_attempt_summaries: list[str] = []
+            aggregated_results: list[NormalizedResult] = []
+            total_dropped = 0
 
-            if results:
-                partial_count = self._count_partial_price_results(results)
+            for strategy_name, variant_query in variants:
+                results, dropped_low_match = await self._run_single_attempt(strategy_name, variant_query)
+                total_dropped += dropped_low_match
+                variant_attempt_summaries.append(
+                    f"{strategy_name}:{len(results)} result(s)"
+                    if results
+                    else f"{strategy_name}:0 result(s)"
+                )
+                aggregated_results.extend(results)
+
+                if self.should_stop_after_variant(strategy_name, results):
+                    break
+
+            deduped_results = self.dedupe_results(aggregated_results)
+            limited_results = deduped_results[: self.max_results]
+            final_results, dropped_against_original = self.apply_query_match_filter(normalized_query, limited_results)
+            total_dropped += dropped_against_original
+
+            if final_results:
+                partial_count = self._count_partial_price_results(final_results)
                 warning_parts: list[str] = []
                 if partial_count > 0:
                     warning_parts.append(f"Partial parse: {partial_count} result(s) had no numeric price value.")
-                if dropped_low_match > 0:
+                if total_dropped > 0:
                     warning_parts.append(
-                        f"Filtered {dropped_low_match} result(s) below {self.minimum_match_percent}% query match."
+                        f"Filtered {total_dropped} result(s) below {self.minimum_match_percent}% query match."
                     )
+                if len(variants) > 1:
+                    warning_parts.append(f"Query strategies: {', '.join(variant_attempt_summaries)}.")
                 if warning_parts:
                     self.last_warning = " ".join(warning_parts)
-                self.persist_results(normalized_query, results)
+                self.persist_results(normalized_query, final_results)
                 self.logger.info(
-                    "%s api search completed query=%s results=%s",
+                    "%s api search completed query=%s results=%s strategies=%s",
                     self.__class__.__name__,
                     normalized_query,
-                    len(results),
+                    len(final_results),
+                    ", ".join(variant_attempt_summaries),
                 )
             else:
-                if dropped_low_match > 0:
-                    self.last_warning = (
-                        "No API results met connector-level match threshold "
-                        f"({self.minimum_match_percent}%+ required)."
-                    )
-                else:
-                    self.last_warning = "No API results were parsed from response payload."
+                self.last_warning = (
+                    "No API results met connector-level match threshold "
+                    f"({self.minimum_match_percent}%+ required)."
+                    if total_dropped > 0
+                    else "No API results were parsed from response payload."
+                )
+                if len(variants) > 1:
+                    self.last_warning = f"{self.last_warning} Query strategies: {', '.join(variant_attempt_summaries)}."
                 self.logger.warning(
-                    "%s api search completed with no results query=%s",
+                    "%s api search completed with no results query=%s strategies=%s",
                     self.__class__.__name__,
                     normalized_query,
+                    ", ".join(variant_attempt_summaries),
                 )
 
-            return results
+            return final_results
 
         except requests.RequestException as exc:
             self.last_error = f"Network error while fetching source API: {exc}"
@@ -110,6 +129,88 @@ class SecondaryAPIConnector(BaseConnector, ABC):
                 exc,
             )
             return []
+
+    async def _run_single_attempt(self, strategy_name: str, query: str) -> tuple[list[NormalizedResult], int]:
+        request = self.build_request(query)
+        self.logger.info(
+            "%s api search attempt strategy=%s query=%s request=%s",
+            self.__class__.__name__,
+            strategy_name,
+            query,
+            self._loggable_request(request),
+        )
+        payload = await asyncio.to_thread(self.download_payload, request)
+        results = self._extract_results(query, payload)
+        annotated = self._annotate_results_for_strategy(strategy_name, query, results)
+        return self.apply_query_match_filter(query, annotated)
+
+    def build_query_variants(self, query: str) -> list[tuple[str, str]]:
+        normalized = self.normalize_ws(query)
+        if not normalized:
+            return []
+
+        tokens = [token for token in re.split(r"\s+", normalized) if token]
+        model_token = self._detect_model_token(tokens)
+        brand_token = tokens[0] if tokens else ""
+        keyword_tokens = [token for token in tokens if token.lower() != model_token.lower()] if model_token else tokens
+        keyword_phrase = " ".join(keyword_tokens[:4]).strip()
+
+        candidates: list[tuple[str, str]] = []
+        if model_token:
+            candidates.append(("model_number", model_token))
+        if brand_token and model_token:
+            candidates.append(("brand_model", f"{brand_token} {model_token}"))
+        if brand_token and keyword_phrase:
+            candidates.append(("brand_keywords", f"{brand_token} {keyword_phrase}"))
+        candidates.append(("fallback", normalized))
+
+        seen: set[str] = set()
+        ordered: list[tuple[str, str]] = []
+        for strategy_name, text in candidates:
+            cleaned = self.normalize_ws(text)
+            key = cleaned.lower()
+            if not cleaned or key in seen:
+                continue
+            seen.add(key)
+            ordered.append((strategy_name, cleaned))
+        return ordered
+
+    @staticmethod
+    def _detect_model_token(tokens: list[str]) -> str | None:
+        for token in tokens:
+            compact = token.strip()
+            if not compact:
+                continue
+            if re.search(r"[0-9]", compact) and len(compact) >= 3:
+                return compact
+        return None
+
+    def should_stop_after_variant(self, strategy_name: str, results: list[NormalizedResult]) -> bool:
+        return strategy_name == "model_number" and len(results) >= 3
+
+    def _annotate_results_for_strategy(
+        self, strategy_name: str, query: str, results: list[NormalizedResult]
+    ) -> list[NormalizedResult]:
+        strategy_score_boost = {
+            "model_number": 8,
+            "brand_model": 5,
+            "brand_keywords": 3,
+            "fallback": 0,
+        }.get(strategy_name, 0)
+
+        enriched: list[NormalizedResult] = []
+        for result in results:
+            why = (result.why or "").strip()
+            strategy_why = f"Strategy {strategy_name} query '{query}'."
+            enriched.append(
+                result.model_copy(
+                    update={
+                        "score": min(100, result.score + strategy_score_boost),
+                        "why": f"{strategy_why} {why}".strip(),
+                    }
+                )
+            )
+        return enriched
 
     def _extract_results(self, query: str, payload: Any) -> list[NormalizedResult]:
         raw_results = self.extract_results(query, payload)

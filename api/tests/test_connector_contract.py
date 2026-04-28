@@ -22,10 +22,17 @@ class FakeAPIContractConnector(SecondaryAPIConnector):
     source_label = "Fake API"
     max_results = 2
 
-    def __init__(self, payload: object = None, should_raise: bool = False) -> None:
+    def __init__(
+        self,
+        payload: object = None,
+        should_raise: bool = False,
+        payload_by_query: dict[str, object] | None = None,
+    ) -> None:
         super().__init__()
         self.payload = payload if payload is not None else {"items": []}
         self.should_raise = should_raise
+        self.payload_by_query = payload_by_query or {}
+        self.requested_queries: list[str] = []
 
     def build_request(self, query: str) -> dict[str, object]:
         return {"query": query}
@@ -33,7 +40,9 @@ class FakeAPIContractConnector(SecondaryAPIConnector):
     def download_payload(self, request: dict[str, object]) -> object:
         if self.should_raise:
             raise requests.RequestException("simulated api transport failure")
-        return self.payload
+        query = str(request.get("query", ""))
+        self.requested_queries.append(query)
+        return self.payload_by_query.get(query, self.payload)
 
     def extract_results(self, query: str, payload: object) -> list[NormalizedResult]:
         if not isinstance(payload, dict):
@@ -219,6 +228,37 @@ class ConnectorContractTests(unittest.IsolatedAsyncioTestCase):
         # max_results=2 keeps first two rows; dedupe then removes the duplicate URL.
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0].title, "Valid One")
+
+    async def test_api_connector_uses_multi_strategy_query_fallback_order(self):
+        payload_by_query = {
+            "2613-20": {"items": []},
+            "Milwaukee 2613-20": {"items": []},
+            "Milwaukee M18 SDS Hammer": {
+                "items": [
+                    {
+                        "title": "Milwaukee M18 Brushless SDS 1in",
+                        "url": "https://example.test/p/m18-sds",
+                        "price_text": "$299.00",
+                        "price_value": 299.0,
+                        "brand": "Milwaukee",
+                        "sku": "2613-20",
+                    }
+                ]
+            },
+        }
+        connector = FakeAPIContractConnector(
+            payload={"items": []},
+            payload_by_query=payload_by_query,
+        )
+
+        results = await connector.search("Milwaukee 2613-20 M18 SDS Hammer")
+
+        self.assertEqual(
+            connector.requested_queries[:3],
+            ["2613-20", "Milwaukee 2613-20", "Milwaukee M18 SDS Hammer"],
+        )
+        self.assertEqual(len(results), 1)
+        self.assertIn("Strategy brand_keywords query 'Milwaukee M18 SDS Hammer'.", results[0].why)
 
 
 if __name__ == "__main__":
