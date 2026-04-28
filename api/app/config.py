@@ -18,6 +18,21 @@ def _to_int(value: str | None, default: int) -> int:
         return default
 
 
+def _to_float(value: str | None, default: float) -> float:
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        return default
+
+
+def _to_bool(value: str | None, default: bool) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _to_list(value: str | None, default: list[str]) -> list[str]:
     if value is None:
         return default
@@ -47,6 +62,8 @@ class Settings:
         "CORS_ALLOW_ORIGIN_REGEX",
         r"^http://(localhost|127\.0\.0\.1)(:\d+)?$|^https://.*\.onrender\.com$|^https://.*\.vercel\.app$",
     )
+    semantic_match_enabled: bool = _to_bool(os.getenv("SEMANTIC_MATCH_ENABLED"), True)
+    semantic_match_threshold: float = _to_float(os.getenv("SEMANTIC_MATCH_THRESHOLD"), 0.45)
 
 
 settings = Settings()
