@@ -15,6 +15,7 @@ from app.connectors.scn_connector import SCNConnector
 from app.models.normalized_result import NormalizedResult, SearchResponse
 from app.services.analysis_service import AnalysisService
 from app.services.scn_catalog_service import SCNCatalogService, SCNItem
+from app.services.semantic_match_service import SemanticMatchService
 
 
 class SearchService:
@@ -115,7 +116,11 @@ class SearchService:
             if outcome["error"]:
                 per_source_errors[connector.source_label] = outcome["error"]
 
-        ranked_results = self._rank_results(aggregated_results)
+        ranked_results = self._rank_results(
+            query=query,
+            results=aggregated_results,
+            per_source_warnings=per_source_warnings,
+        )
         analysis = self.analysis_service.build(
             ranked_results,
             per_source_errors=per_source_errors,
@@ -173,7 +178,11 @@ class SearchService:
             if outcome["error"]:
                 per_source_errors[connector.source_label] = outcome["error"]
 
-        ranked_results = self._rank_results(all_results)
+        ranked_results = self._rank_results(
+            query=query,
+            results=all_results,
+            per_source_warnings=per_source_warnings,
+        )
 
         return SearchResponse(
             query=query,
@@ -199,6 +208,86 @@ class SearchService:
     ) -> list[NormalizedResult]:
         return await connector.search(query)
 
+    def _rank_results(
+        self,
+        query: str,
+        results: list[NormalizedResult],
+        per_source_warnings: dict[str, str],
+    ) -> list[NormalizedResult]:
+        # Pass 1: connector output already includes parser-level normalization and lexical filtering.
+        pass1_ranked = sorted(results, key=lambda item: (item.score, item.price_value is not None), reverse=True)
+
+        if not settings.semantic_second_pass_enabled:
+            return pass1_ranked
+        if len(per_source_warnings) >= settings.semantic_warning_skip_threshold:
+            return pass1_ranked
+
+        return self._apply_semantic_second_pass(query=query, results=pass1_ranked)
+
+    def _apply_semantic_second_pass(self, query: str, results: list[NormalizedResult]) -> list[NormalizedResult]:
+        evaluated = 0
+        threshold = SemanticMatchService.threshold()
+        reranked: list[NormalizedResult] = []
+
+        for result in results:
+            if not self._requires_semantic_review(query=query, result=result):
+                reranked.append(result)
+                continue
+            if evaluated >= settings.semantic_max_evaluations_per_request:
+                reranked.append(result)
+                continue
+
+            try:
+                comparison_text = SemanticMatchService.build_comparison_text(result)
+                similarity = SemanticMatchService.compute_semantic_similarity(query, comparison_text)
+                evaluated += 1
+                semantic_score = int(round(similarity * 100))
+                updated_score = max(result.score, semantic_score) if similarity >= threshold else max(0, result.score - 10)
+                reranked.append(
+                    result.model_copy(
+                        update={
+                            "score": updated_score,
+                            "why": (
+                                f"{result.why} Semantic pass-2 reviewed ambiguous match "
+                                f"({semantic_score}% vs threshold {int(round(threshold * 100))}%)."
+                            ).strip(),
+                        }
+                    )
+                )
+            except Exception:
+                # Semantic service failures should never fail request ranking.
+                reranked.append(result)
+
+        return sorted(reranked, key=lambda item: (item.score, item.price_value is not None), reverse=True)
+
     @staticmethod
-    def _rank_results(results: list[NormalizedResult]) -> list[NormalizedResult]:
-        return sorted(results, key=lambda item: (item.score, item.price_value is not None), reverse=True)
+    def _requires_semantic_review(query: str, result: NormalizedResult) -> bool:
+        min_score = settings.semantic_ambiguous_min_score
+        max_score = settings.semantic_ambiguous_max_score
+        in_score_band = min_score <= result.score <= max_score
+        return in_score_band or not SearchService._has_exact_part_match(query, result)
+
+    @staticmethod
+    def _has_exact_part_match(query: str, result: NormalizedResult) -> bool:
+        query_tokens = SearchService._normalize_model_tokens(query)
+        if not query_tokens:
+            return False
+        for candidate in [result.sku, result.model, result.manufacturer_model]:
+            normalized = SearchService._normalize_model_token(candidate)
+            if normalized and normalized in query_tokens:
+                return True
+        return False
+
+    @staticmethod
+    def _normalize_model_tokens(value: str) -> set[str]:
+        return {
+            SearchService._normalize_model_token(token)
+            for token in value.split()
+            if SearchService._normalize_model_token(token)
+        }
+
+    @staticmethod
+    def _normalize_model_token(value: str | None) -> str:
+        if not value:
+            return ""
+        return "".join(char for char in value.lower() if char.isalnum())
