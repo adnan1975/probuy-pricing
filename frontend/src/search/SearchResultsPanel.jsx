@@ -131,6 +131,20 @@ export function SearchResultsPanel({
   onClearFilters,
   onUseExampleQuery
 }) {
+  const analysisMetrics = {
+    totalResults: Number(analysis?.total_results ?? totalResults ?? 0),
+    pricedResults: Number(analysis?.priced_results ?? 0),
+    lowestPrice: analysis?.lowest_price,
+    highestPrice: analysis?.highest_price,
+    averagePrice: analysis?.average_price,
+    sourceWarnings: Object.keys(analysis?.per_source_warnings || {}).length,
+    sourceErrors: Object.keys(analysis?.per_source_errors || {}).length,
+  };
+
+  const sourceWarnings = analysis?.per_source_warnings || {};
+  const sourceErrors = analysis?.per_source_errors || {};
+  const hasSourceHealth = Object.keys(sourceWarnings).length > 0 || Object.keys(sourceErrors).length > 0;
+
   const hasVisibleResults = visibleResults.length > 0;
   const loadingQueryLabel = activeQuery || "your query";
   const skeletonRows = Array.from({ length: 6 }, (_, index) => index);
@@ -148,6 +162,55 @@ export function SearchResultsPanel({
         </div>
       )}
       {hasActiveSearch && <h2>Items found</h2>}
+      {hasActiveSearch && !loading && !apiError && (
+        <div className="kpi-dashboard" aria-label="Search KPI dashboard">
+          <div className="kpi-card">
+            <div className="kpi-label">Total Results</div>
+            <div className="kpi-value">{analysisMetrics.totalResults}</div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-label">Priced Results</div>
+            <div className="kpi-value">{analysisMetrics.pricedResults}</div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-label">Lowest Price</div>
+            <div className="kpi-value">{formatCurrency(analysisMetrics.lowestPrice)}</div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-label">Highest Price</div>
+            <div className="kpi-value">{formatCurrency(analysisMetrics.highestPrice)}</div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-label">Average Price</div>
+            <div className="kpi-value">{formatCurrency(analysisMetrics.averagePrice)}</div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-label">Source Health</div>
+            <div className="kpi-value">
+              <span className={`pill ${analysisMetrics.sourceErrors > 0 ? "red" : "green"}`}>
+                {analysisMetrics.sourceErrors} error(s)
+              </span>
+              <span className={`pill ${analysisMetrics.sourceWarnings > 0 ? "amber" : "green"}`}>
+                {analysisMetrics.sourceWarnings} warning(s)
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+      {hasSourceHealth && !loading && !apiError && (
+        <div className="kpi-source-health">
+          {Object.entries(sourceWarnings).map(([source, warning]) => (
+            <div className="info-box" key={`warning-${source}`}>
+              <strong>{source} warning:</strong> {warning}
+            </div>
+          ))}
+          {Object.entries(sourceErrors).map(([source, error]) => (
+            <div className="error-box" key={`error-${source}`}>
+              <strong>{source} error:</strong> {error}
+            </div>
+          ))}
+        </div>
+      )}
       {apiError && <div className="error-box"><strong>API error:</strong> {apiError}</div>}
       {loading && (
         <div className="info-box inline-loader" aria-live="polite">
