@@ -79,7 +79,7 @@ class ConnectorPriceService:
         }
 
         params = {
-            "select": "source,source_type,title,price_text,price,sku,manufacturer_model,available,location,currency,product_url,image_url,confidence,why,date_created",
+            "select": "source,source_code,source_type,title,price_text,price,sku,manufacturer_model,available,location,currency,product_url,image_url,confidence,why,date_created",
             "order": "date_created.desc",
             # Pull a larger window, then dedupe + paginate locally so each connector row is the latest snapshot.
             "limit": "1000",
@@ -103,7 +103,7 @@ class ConnectorPriceService:
         for row in page_rows:
             results.append(
                 NormalizedResult(
-                    source=str(row.get("source") or "Unknown"),
+                    source=str(row.get("source_code") or row.get("source") or "Unknown"),
                     source_type=str(row.get("source_type") or "retail"),
                     title=str(row.get("title") or "Untitled"),
                     price_text=row.get("price_text") or (f"${float(row['price']):,.2f}" if row.get("price") is not None else "Price unavailable"),
@@ -132,7 +132,7 @@ class ConnectorPriceService:
         deduped: list[dict] = []
         for row in rows:
             key = (
-                str(row.get("source") or "").strip().lower(),
+                str(row.get("source_code") or row.get("source") or "").strip().lower(),
                 str(row.get("sku") or "").strip().lower(),
                 str(row.get("manufacturer_model") or "").strip().lower(),
                 str(row.get("title") or "").strip().lower(),
