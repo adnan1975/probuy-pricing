@@ -53,11 +53,32 @@ class SearchService:
             return None
         return self._connector_lookup.get(normalized) or self._connector_lookup.get(normalized.replace("-", "_"))
 
-    async def search(self, query: str, page: int = 1, page_size: int = 25) -> SearchResponse:
+    async def search(
+        self,
+        query: str,
+        page: int = 1,
+        page_size: int = 25,
+        published: bool | None = None,
+        channel: str | None = None,
+        channels: list[str] | None = None,
+    ) -> SearchResponse:
         self.logger.info("Running two-step search", extra={"query": query})
 
-        step1_response, scn_items = await self.search_step1(query, page=page, page_size=page_size)
-        step2_response = await self.search_step2(query, scn_items=scn_items)
+        step1_response, scn_items = await self.search_step1(
+            query,
+            page=page,
+            page_size=page_size,
+            published=published,
+            channel=channel,
+            channels=channels,
+        )
+        step2_response = await self.search_step2(
+            query,
+            scn_items=scn_items,
+            published=published,
+            channel=channel,
+            channels=channels,
+        )
 
         per_source_errors = {
             **step1_response.per_source_errors,
@@ -99,6 +120,9 @@ class SearchService:
         query: str,
         page: int = 1,
         page_size: int = 25,
+        published: bool | None = None,
+        channel: str | None = None,
+        channels: list[str] | None = None,
     ) -> tuple[SearchResponse, list[SCNItem]]:
         """Step 1: search only SCN pricing."""
         per_source_errors: dict[str, str] = {}
@@ -144,7 +168,14 @@ class SearchService:
         )
         return response, scn_items
 
-    async def search_step2(self, query: str, scn_items: list[SCNItem] | None = None) -> SearchResponse:
+    async def search_step2(
+        self,
+        query: str,
+        scn_items: list[SCNItem] | None = None,
+        published: bool | None = None,
+        channel: str | None = None,
+        channels: list[str] | None = None,
+    ) -> SearchResponse:
         """Step 2: search non-SCN connectors using SCN-derived variants."""
         non_scn_connectors = [connector for connector in self.connectors if not isinstance(connector, SCNConnector)]
         step2_results, per_source_errors, per_source_warnings = await self.collect_live_results(
