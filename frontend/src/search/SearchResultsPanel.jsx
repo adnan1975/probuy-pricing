@@ -314,6 +314,18 @@ export function SearchResultsPanel({
               ],
               [
                 { label: "Warehouse", value: item.location || item.warehouse_location || item.warehouse || "N/A" }
+              ],
+              [
+                {
+                  label: "Published",
+                  value: typeof item.is_published === "boolean"
+                    ? (item.is_published ? "PUBLISHED" : "NOT_PUBLISHED")
+                    : (item.publication_status || "N/A")
+                },
+                {
+                  label: "Channel",
+                  value: item.channel_code || "N/A"
+                }
               ]
             ];
             return (
