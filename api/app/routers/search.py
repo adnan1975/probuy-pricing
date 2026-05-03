@@ -22,9 +22,31 @@ async def search(
     product: str = Query(default=""),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=25, ge=1, le=100),
+    published: bool | None = Query(default=None),
+    channel: str | None = Query(default=None),
+    channels: list[str] | None = Query(default=None),
 ) -> SearchResponse:
-    logger.info("Received /search request", extra={"product": product, "page": page, "page_size": page_size})
-    return await search_service.search(product, page=page, page_size=page_size)
+    logger.info(
+        "Received /search request",
+        extra={
+            "product": product,
+            "page": page,
+            "page_size": page_size,
+            "published": published,
+            "channel": channel,
+            "channels": channels,
+        },
+    )
+    normalized_channel = None if channel is None or channel.strip().lower() == "all" else channel
+    normalized_channels = [item for item in (channels or []) if item.strip().lower() != "all"] or None
+    return await search_service.search(
+        product,
+        page=page,
+        page_size=page_size,
+        published=published,
+        channel=normalized_channel,
+        channels=normalized_channels,
+    )
 
 
 @router.get("/search/step1", response_model=SearchResponse)
@@ -32,16 +54,53 @@ async def search_step1(
     product: str = Query(default=""),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=25, ge=1, le=100),
+    published: bool | None = Query(default=None),
+    channel: str | None = Query(default=None),
+    channels: list[str] | None = Query(default=None),
 ) -> SearchResponse:
-    logger.info("Received /search/step1 request", extra={"product": product, "page": page, "page_size": page_size})
-    response, _ = await search_service.search_step1(product, page=page, page_size=page_size)
+    logger.info(
+        "Received /search/step1 request",
+        extra={
+            "product": product,
+            "page": page,
+            "page_size": page_size,
+            "published": published,
+            "channel": channel,
+            "channels": channels,
+        },
+    )
+    normalized_channel = None if channel is None or channel.strip().lower() == "all" else channel
+    normalized_channels = [item for item in (channels or []) if item.strip().lower() != "all"] or None
+    response, _ = await search_service.search_step1(
+        product,
+        page=page,
+        page_size=page_size,
+        published=published,
+        channel=normalized_channel,
+        channels=normalized_channels,
+    )
     return response
 
 
 @router.get("/search/step2", response_model=SearchResponse)
-async def search_step2(product: str = Query(default="")) -> SearchResponse:
-    logger.info("Received /search/step2 request", extra={"product": product})
-    return await search_service.search_step2(product)
+async def search_step2(
+    product: str = Query(default=""),
+    published: bool | None = Query(default=None),
+    channel: str | None = Query(default=None),
+    channels: list[str] | None = Query(default=None),
+) -> SearchResponse:
+    logger.info(
+        "Received /search/step2 request",
+        extra={"product": product, "published": published, "channel": channel, "channels": channels},
+    )
+    normalized_channel = None if channel is None or channel.strip().lower() == "all" else channel
+    normalized_channels = [item for item in (channels or []) if item.strip().lower() != "all"] or None
+    return await search_service.search_step2(
+        product,
+        published=published,
+        channel=normalized_channel,
+        channels=normalized_channels,
+    )
 
 
 @router.post("/search/{connector_name}", response_model=ConnectorSearchResponse)
