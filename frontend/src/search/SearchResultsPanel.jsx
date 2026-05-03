@@ -314,6 +314,30 @@ export function SearchResultsPanel({
               ],
               [
                 { label: "Warehouse", value: item.location || item.warehouse_location || item.warehouse || "N/A" }
+              ],
+              [
+                (() => {
+                  const publicationStatus = typeof item.is_published === "boolean"
+                    ? (item.is_published ? "PUBLISHED" : "NOT_PUBLISHED")
+                    : (item.publication_status || "");
+                  const isNotPublished = publicationStatus === "NOT_PUBLISHED";
+                  return {
+                    label: "Published",
+                    value: isNotPublished ? "Not published" : (publicationStatus || "N/A")
+                  };
+                })(),
+                {
+                  label: "Channel",
+                  value: (() => {
+                    const publicationStatus = typeof item.is_published === "boolean"
+                      ? (item.is_published ? "PUBLISHED" : "NOT_PUBLISHED")
+                      : (item.publication_status || "");
+                    if (publicationStatus === "NOT_PUBLISHED") {
+                      return "—";
+                    }
+                    return item.channel_code || "N/A";
+                  })()
+                }
               ]
             ];
             return (
