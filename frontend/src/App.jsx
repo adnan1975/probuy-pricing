@@ -164,7 +164,7 @@ function App() {
 
   const facetOptions = useMemo(() => {
     const toSortedList = (facetKey) => Object.keys(facetDistribution?.[facetKey] || {}).sort((a, b) => a.localeCompare(b));
-    const reserved = new Set(["brand", "manufacturer", "category", "source", "stock_status"]);
+    const reserved = new Set(["brand", "manufacturer", "category", "source", "stock_status", "publication_status", "channel_code"]);
     const dynamicAttributeKeys = Object.keys(facetDistribution || {})
       .filter((key) => !reserved.has(key))
       .sort((a, b) => a.localeCompare(b));
@@ -175,6 +175,8 @@ function App() {
       category: toSortedList("category"),
       source: toSortedList("source"),
       stock_status: toSortedList("stock_status"),
+      publication_status: toSortedList("publication_status"),
+      channel_code: toSortedList("channel_code"),
       dynamicAttributeKeys
     };
   }, [facetDistribution]);
@@ -617,6 +619,26 @@ function App() {
                       <select value={draftFilters.stock_status} onChange={(e) => updateFilter("stock_status", e.target.value)}>
                         <option value="">Any availability</option>
                         {facetOptions.stock_status.map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="filter-group">
+                      <span>Published</span>
+                      <select value={draftFilters.publication_status} onChange={(e) => updateFilter("publication_status", e.target.value)}>
+                        <option value="">Any status</option>
+                        {facetOptions.publication_status.map((option) => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="filter-group">
+                      <span>Channel</span>
+                      <select value={draftFilters.channel_code} onChange={(e) => updateFilter("channel_code", e.target.value)}>
+                        <option value="">All channels</option>
+                        {facetOptions.channel_code.map((option) => (
                           <option key={option} value={option}>{option}</option>
                         ))}
                       </select>

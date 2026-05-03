@@ -8,6 +8,8 @@ const defaultFilters = {
   category: "",
   source: "",
   stock_status: "",
+  publication_status: "",
+  channel_code: "",
   attributes: {},
   price: { ...defaultRange },
   length: { ...defaultRange },

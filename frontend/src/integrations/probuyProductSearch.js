@@ -55,7 +55,7 @@ export function buildProductSearchParams(filters = {}) {
   const params = new URLSearchParams();
   appendValue(params, "q", filters.q);
 
-  ["brand", "manufacturer", "category", "source", "stock_status"].forEach((textFilterKey) => {
+  ["brand", "manufacturer", "category", "source", "stock_status", "publication_status", "channel_code"].forEach((textFilterKey) => {
     toArray(filters[textFilterKey]).forEach((value) => appendValue(params, textFilterKey, value));
   });
 
