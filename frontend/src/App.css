@@ -808,6 +808,8 @@ body {
 
   .filter-sidebar {
     position: static;
+    max-height: none;
+    overflow: visible;
   }
 }
 
@@ -961,6 +963,8 @@ body {
 .filter-sidebar {
   position: sticky;
   top: 20px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
   background: linear-gradient(165deg, #f8fbff 0%, #eef4ff 100%);
   border: 1px solid #bfdbfe;
   box-shadow: 0 14px 34px rgba(30, 64, 175, 0.12);
@@ -995,6 +999,14 @@ body {
   width: 100%;
   margin-top: 16px;
   padding: 10px 12px;
+}
+
+.filter-sidebar .apply-filter-btn {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin-top: 20px;
+  box-shadow: 0 -8px 16px rgba(238, 244, 255, 0.95);
 }
 
 .apply-filter-btn:hover,
@@ -1261,6 +1273,8 @@ body {
 
   .filter-sidebar {
     position: static;
+    max-height: none;
+    overflow: visible;
   }
 
   .four-cols {
