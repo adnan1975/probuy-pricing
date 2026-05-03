@@ -36,6 +36,7 @@ class SearchAnalysis(BaseModel):
 
 class SearchResponse(BaseModel):
     query: str
+    applied_filters: dict[str, object] | None = None
     results: list[NormalizedResult] = Field(default_factory=list)
     analysis: SearchAnalysis
     page: int = 1

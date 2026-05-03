@@ -119,6 +119,11 @@ class SearchService:
             total_results=total_results,
             per_source_errors=per_source_errors,
             per_source_warnings=per_source_warnings,
+            applied_filters=self._build_applied_filters(
+                published=published,
+                channel=channel,
+                channels=channels,
+            ),
         )
 
     async def search_step1(
@@ -218,6 +223,29 @@ class SearchService:
             per_source_errors=per_source_errors,
             per_source_warnings=per_source_warnings,
         )
+
+    @staticmethod
+    def _build_applied_filters(
+        published: bool | None = None,
+        channel: str | None = None,
+        channels: list[str] | None = None,
+    ) -> dict[str, object]:
+        normalized_channels = [
+            candidate.strip()
+            for candidate in (channels or [])
+            if candidate and candidate.strip()
+        ]
+        effective_channel = channel.strip() if channel and channel.strip() else None
+        if effective_channel and effective_channel.lower() != "all" and effective_channel not in normalized_channels:
+            normalized_channels.append(effective_channel)
+
+        effective_channels = [item for item in normalized_channels if item.lower() != "all"]
+
+        return {
+            "published": published,
+            "channel": effective_channel,
+            "channels": effective_channels,
+        }
 
     @staticmethod
     def _is_scn_result(result: NormalizedResult) -> bool:
