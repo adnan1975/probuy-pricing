@@ -90,6 +90,12 @@ class SearchService:
         }
 
         combined_results = [*step1_response.results, *step2_response.results]
+        combined_results = self._apply_publication_filters(
+            combined_results,
+            published=published,
+            channel=channel,
+            channels=channels,
+        )
         ranked_results = self.matching_service.apply(query, combined_results)
         ranked_results = self._enforce_scn_priority(ranked_results)
         analysis = self.analysis_service.build(
@@ -142,7 +148,13 @@ class SearchService:
                 per_source_errors[scn_connector.source_label] = str(exc)
                 self.logger.error("SCN step failed", extra={"query": query}, exc_info=True)
 
-        ranked_results = self.matching_service.apply(query, step1_results)
+        filtered_results = self._apply_publication_filters(
+            step1_results,
+            published=published,
+            channel=channel,
+            channels=channels,
+        )
+        ranked_results = self.matching_service.apply(query, filtered_results)
         ranked_results = self._enforce_scn_priority(ranked_results)
         analysis = self.analysis_service.build(
             ranked_results,
@@ -183,7 +195,13 @@ class SearchService:
             scn_items=scn_items,
             connectors=non_scn_connectors,
         )
-        ranked_results = self.matching_service.apply(query, step2_results)
+        filtered_results = self._apply_publication_filters(
+            step2_results,
+            published=published,
+            channel=channel,
+            channels=channels,
+        )
+        ranked_results = self.matching_service.apply(query, filtered_results)
         analysis = self.analysis_service.build(
             ranked_results,
             per_source_errors=per_source_errors,
@@ -224,6 +242,39 @@ class SearchService:
             ),
             reverse=True,
         )
+
+    @staticmethod
+    def _apply_publication_filters(
+        results: list[NormalizedResult],
+        published: bool | None = None,
+        channel: str | None = None,
+        channels: list[str] | None = None,
+    ) -> list[NormalizedResult]:
+        active_channels = channels or ([channel] if channel else [])
+        normalized_channels = {
+            candidate.strip().lower()
+            for candidate in active_channels
+            if candidate and candidate.strip().lower() != "all"
+        }
+
+        filtered_results = results
+
+        if published is not None:
+            filtered_results = [
+                result
+                for result in filtered_results
+                if result.is_published is not None and result.is_published == published
+            ]
+
+        if normalized_channels:
+            filtered_results = [
+                result
+                for result in filtered_results
+                if result.publication_channel is not None
+                and result.publication_channel.strip().lower() in normalized_channels
+            ]
+
+        return filtered_results
 
     async def collect_live_results(
         self,
