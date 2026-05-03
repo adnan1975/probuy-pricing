@@ -17,6 +17,8 @@ class NormalizedResult(BaseModel):
     location: str | None = None
     product_url: str | None = None
     image_url: str | None = None
+    is_published: bool | None = None
+    publication_channel: str | None = None
     confidence: str = "Medium"
     score: int = 0
     why: str = "Base connector match"

@@ -134,6 +134,8 @@ class HomeDepotConnector(PlaywrightConnector):
                 availability=availability or "Unknown",
                 product_url=product_url,
                 image_url=image_url,
+                is_published=None,
+                publication_channel=None,
                 confidence="Medium" if price_value is not None else "Low",
                 why=(
                     "Matched on Home Depot search card title + visible price."

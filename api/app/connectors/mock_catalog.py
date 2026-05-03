@@ -65,6 +65,8 @@ def build_mock_result(query: str, source: str, source_label: str) -> list[Normal
             availability="In Stock",
             product_url=product["links"][source],
             image_url=None,
+            is_published=None,
+            publication_channel=None,
             confidence="High",
             score=98 if source == "white_cap" else 95,
         )

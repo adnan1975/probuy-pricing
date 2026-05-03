@@ -41,6 +41,8 @@ class SCNConnector(BaseConnector):
                     location=item.warehouse,
                     product_url=None,
                     image_url=None,
+                    is_published=None,
+                    publication_channel=None,
                     confidence="High",
                     score=88 if price_value is not None else 72,
                     why=why,
