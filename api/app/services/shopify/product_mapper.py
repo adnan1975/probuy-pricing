@@ -1,0 +1,163 @@
+from __future__ import annotations
+
+import html
+import logging
+import re
+from decimal import Decimal, InvalidOperation
+from typing import Any
+from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
+
+
+def _clean_text(value: Any) -> str:
+    return " ".join(str(value or "").strip().split())
+
+
+def _slugify(value: str) -> str:
+    value = value.lower()
+    value = re.sub(r"[^a-z0-9]+", "-", value)
+    value = re.sub(r"-{2,}", "-", value)
+    return value.strip("-")
+
+
+def _first_non_empty(*values: Any) -> str:
+    for value in values:
+        text = _clean_text(value)
+        if text:
+            return text
+    return ""
+
+
+def _to_price(value: Any) -> str | None:
+    if value is None:
+        return None
+    cleaned = str(value).replace("$", "").replace(",", "").strip()
+    try:
+        amount = Decimal(cleaned)
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+    if amount <= 0:
+        return None
+    return f"{amount:.2f}"
+
+
+def _public_https_url(url: str) -> bool:
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    if parsed.scheme != "https" or not parsed.netloc:
+        return False
+    host = parsed.hostname or ""
+    if host in {"localhost", "127.0.0.1"}:
+        return False
+    if host.endswith(".local"):
+        return False
+    return True
+
+
+def map_product_to_product_set_input(product: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    sku = _first_non_empty(product.get("sku"), product.get("part_number"), product.get("mpn"))
+    brand = _first_non_empty(product.get("brand"), product.get("manufacturer"), "Unknown")
+    title = _first_non_empty(
+        product.get("title"),
+        product.get("name"),
+        product.get("product_name"),
+        product.get("description"),
+        sku,
+        "Untitled Product",
+    )
+    handle = _first_non_empty(
+        product.get("shopify_handle"),
+        product.get("slug"),
+        product.get("handle"),
+        _slugify(f"{brand}-{sku}"),
+        _slugify(title),
+    )
+    details = _first_non_empty(product.get("details"), product.get("description"), product.get("long_description"))
+    description_html = f"<p>{html.escape(details)}</p>" if details else "<p>No description provided.</p>"
+
+    tags = [
+        _clean_text(product.get("category")),
+        _clean_text(brand),
+        _clean_text(product.get("source")),
+    ]
+    tags = [tag for tag in tags if tag]
+
+    price = _to_price(product.get("price") or product.get("price_value") or product.get("list_price"))
+    cost = _to_price(product.get("cost") or product.get("cost_price"))
+
+    variant = {
+        "sku": sku,
+        "price": price,
+        "barcode": _first_non_empty(product.get("barcode"), product.get("upc"), product.get("ean")),
+        "requiresShipping": bool(product.get("requires_shipping", True)),
+        "taxable": bool(product.get("taxable", True)),
+        "inventoryItem": {
+            "cost": cost,
+            "measurement": {
+                "weight": {
+                    "unit": _first_non_empty(product.get("weight_unit"), "KILOGRAMS").upper(),
+                    "value": float(product.get("weight") or 0),
+                }
+            },
+        },
+    }
+
+    metafields = []
+    for source_key, mf_key in (
+        ("package_length", "package_length"),
+        ("package_width", "package_width"),
+        ("package_height", "package_height"),
+        ("package_weight", "package_weight"),
+    ):
+        raw = product.get(source_key)
+        if raw is None or str(raw).strip() == "":
+            continue
+        metafields.append({"namespace": "custom", "key": mf_key, "type": "single_line_text_field", "value": str(raw)})
+
+    valid_images: list[dict[str, str]] = []
+    errors: list[str] = []
+    for image_url in product.get("image_urls") or ([product.get("image_url")] if product.get("image_url") else []):
+        cleaned = _clean_text(image_url)
+        if not cleaned:
+            continue
+        if not _public_https_url(cleaned):
+            logger.warning("Skipping non-public or non-https image URL", extra={"image_url": cleaned, "sku": sku})
+            errors.append(f"Invalid image URL skipped: {cleaned}")
+            continue
+        valid_images.append({"src": cleaned})
+
+    product_input = {
+        "handle": handle,
+        "title": title,
+        "descriptionHtml": description_html,
+        "vendor": brand,
+        "productType": _first_non_empty(product.get("product_type"), product.get("category"), "General"),
+        "category": _first_non_empty(product.get("shopify_category"), product.get("category"), "Uncategorized"),
+        "tags": tags,
+        "status": _first_non_empty(product.get("shopify_status"), "DRAFT"),
+        "variants": [variant],
+        "metafields": metafields,
+        "files": valid_images,
+    }
+
+    return product_input, errors
+
+
+def validate_product_for_shopify(product_input: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    title = _clean_text(product_input.get("title"))
+    variant = (product_input.get("variants") or [{}])[0]
+    sku = _clean_text(variant.get("sku"))
+    price = _to_price(variant.get("price"))
+
+    if not title:
+        errors.append("Missing required title")
+    if not sku:
+        errors.append("Missing required SKU")
+    if price is None:
+        errors.append("Missing valid non-zero price")
+
+    return errors
