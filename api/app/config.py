@@ -70,6 +70,13 @@ class Settings:
     semantic_ambiguous_min_score: int = max(0, min(100, _to_int(os.getenv("SEMANTIC_AMBIGUOUS_MIN_SCORE"), 55)))
     semantic_ambiguous_max_score: int = max(0, min(100, _to_int(os.getenv("SEMANTIC_AMBIGUOUS_MAX_SCORE"), 80)))
     semantic_warning_skip_threshold: int = max(0, _to_int(os.getenv("SEMANTIC_WARNING_SKIP_THRESHOLD"), 3))
+    shopify_store_domain: str | None = os.getenv("SHOPIFY_STORE_DOMAIN")
+    shopify_api_version: str = os.getenv("SHOPIFY_API_VERSION", "2026-04")
+    shopify_client_id: str | None = os.getenv("SHOPIFY_CLIENT_ID")
+    shopify_client_secret: str | None = os.getenv("SHOPIFY_CLIENT_SECRET")
+    shopify_default_product_status: str = os.getenv("SHOPIFY_DEFAULT_PRODUCT_STATUS", "DRAFT").upper()
+    shopify_publish_by_default: bool = _to_bool(os.getenv("SHOPIFY_PUBLISH_BY_DEFAULT"), False)
+    shopify_online_store_publication_id: str | None = os.getenv("SHOPIFY_ONLINE_STORE_PUBLICATION_ID")
 
 
 settings = Settings()
