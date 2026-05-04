@@ -154,6 +154,7 @@ async function fetchWithPolicy(
     headers = {}
   } = {}
 ) {
+  const apiBase = import.meta.env.VITE_API_URL;
   const baseUrl = apiBase;
   const requestUrl = new URL(`${baseUrl}${pathname}`);
   if (queryParams instanceof URLSearchParams) {
