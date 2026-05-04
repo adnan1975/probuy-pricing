@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from app.config import settings
 from app.services.shopify.product_service import ShopifyProductService
 
-router = APIRouter(prefix="/api/channels/shopify", tags=["shopify"])
+router = APIRouter(tags=["shopify"])
 service = ShopifyProductService()
 
 
@@ -18,7 +18,8 @@ class ShopifyPublishRequest(BaseModel):
     forceUpdate: bool = False
 
 
-@router.post("/products/{sourceProductId}/publish")
+@router.post("/api/channels/shopify/products/{sourceProductId}/publish")
+@router.post("/channels/shopify/products/{sourceProductId}/publish")
 def publish_product(
     payload: ShopifyPublishRequest,
     sourceProductId: str = Path(..., min_length=1),
