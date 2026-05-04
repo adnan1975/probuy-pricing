@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import logging
+
 from fastapi import APIRouter, Header, HTTPException, Path
 from pydantic import BaseModel
 
@@ -9,6 +11,7 @@ from app.config import settings
 from app.services.shopify.product_service import ShopifyProductService
 
 router = APIRouter(tags=["shopify"])
+logger = logging.getLogger(__name__)
 service = ShopifyProductService()
 
 
@@ -39,9 +42,23 @@ def publish_product(
             triggered_by_user_id=x_user_id,
         )
     except ValueError as exc:
+        logger.warning(
+            "shopify_publish_not_found",
+            extra={"source_product_id": sourceProductId, "status": payload.status, "publish": payload.publish},
+        )
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Shopify publish failed: {exc}") from exc
+        logger.exception(
+            "shopify_publish_failed",
+            extra={
+                "source_product_id": sourceProductId,
+                "status": payload.status,
+                "publish": payload.publish,
+                "force_update": payload.forceUpdate,
+                "triggered_by_user_id": x_user_id,
+            },
+        )
+        raise HTTPException(status_code=500, detail="Shopify publish failed. See server logs for details.") from exc
 
     return {
         "source_product_id": sourceProductId,
