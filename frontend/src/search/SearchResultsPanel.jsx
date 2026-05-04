@@ -327,10 +327,10 @@ export function SearchResultsPanel({
             const metaRows = [
               [
                 { label: "Brand", value: item.brand || "N/A" },
-                { label: "Model", value: item.model || item.sku || "N/A" }
+                { label: "Model", value: item.model_number || item.model || item.sku || "N/A" }
               ],
               [
-                { label: "SKU", value: item.sku || "N/A" },
+                { label: "ID", value: item.source_product_id || item.sourceProductId || "N/A" },
                 { label: "Distributor Cost", value: formatCurrency(item.distributor_cost) },
               ],
               [
@@ -373,7 +373,7 @@ export function SearchResultsPanel({
                     {isBestMatch && <span className="best-match-badge">Best Match</span>}
                   </div>
                   <div className="result-card-source-wrap">
-                    <div className="result-card-source">{item.source}</div>
+                    <div className="result-card-source">{item.source_code || item.sourceCode || item.source}</div>
                     <span className={`pill ${item.source_type === "distributor" ? "green" : "blue"}`}>
                       {item.source_type || "retail"}
                     </span>
