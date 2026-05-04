@@ -29,7 +29,7 @@ def _first_non_empty(*values: Any) -> str:
     return ""
 
 
-def _to_price(value: Any) -> str | None:
+def normalize_price(value: Any) -> Decimal | None:
     if value is None:
         return None
     cleaned = str(value).replace("$", "").replace(",", "").strip()
@@ -39,7 +39,14 @@ def _to_price(value: Any) -> str | None:
         return None
     if amount <= 0:
         return None
-    return f"{amount:.2f}"
+    return amount
+
+
+def normalize_sku(product: dict[str, Any]) -> str:
+    canonical = _clean_text(product.get("source_product_key"))
+    if canonical:
+        return canonical
+    return _clean_text(product.get("source_model_no"))
 
 
 def _public_https_url(url: str) -> bool:
@@ -58,7 +65,7 @@ def _public_https_url(url: str) -> bool:
 
 
 def map_product_to_product_set_input(product: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
-    sku = _first_non_empty(product.get("sku"), product.get("part_number"), product.get("mpn"))
+    sku = normalize_sku(product) or _first_non_empty(product.get("sku"), product.get("part_number"), product.get("mpn"))
     brand = _first_non_empty(product.get("brand"), product.get("manufacturer"), "Unknown")
     title = _first_non_empty(
         product.get("title"),
@@ -85,8 +92,10 @@ def map_product_to_product_set_input(product: dict[str, Any]) -> tuple[dict[str,
     ]
     tags = [tag for tag in tags if tag]
 
-    price = _to_price(product.get("price") or product.get("price_value") or product.get("list_price"))
-    cost = _to_price(product.get("cost") or product.get("cost_price"))
+    normalized_price = normalize_price(product.get("normalized_list_price") or product.get("price") or product.get("price_value") or product.get("list_price"))
+    price = f"{normalized_price:.2f}" if normalized_price is not None else None
+    normalized_cost = normalize_price(product.get("cost") or product.get("cost_price"))
+    cost = f"{normalized_cost:.2f}" if normalized_cost is not None else None
 
     variant = {
         "sku": sku,
@@ -151,13 +160,13 @@ def validate_product_for_shopify(product_input: dict[str, Any]) -> list[str]:
     title = _clean_text(product_input.get("title"))
     variant = (product_input.get("variants") or [{}])[0]
     sku = _clean_text(variant.get("sku"))
-    price = _to_price(variant.get("price"))
+    normalized_price = normalize_price(variant.get("price"))
 
     if not title:
         errors.append("Missing required title")
     if not sku:
         errors.append("Missing required SKU")
-    if price is None:
+    if normalized_price is None:
         errors.append("Missing valid non-zero price")
 
     return errors

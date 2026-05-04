@@ -71,3 +71,17 @@ def publish_product(
         },
         "errors": result.get("errors") or [],
     }
+
+
+@router.get("/api/products/{sourceProductId}")
+@router.get("/products/{sourceProductId}")
+def get_product(sourceProductId: str):
+    service = ShopifyProductService()
+    product = service._load_source_product(sourceProductId)
+    return {
+        **product,
+        "model_number": product.get("source_model_no"),
+        "source_product_key": product.get("source_product_key"),
+        "sku": product.get("normalized_sku"),
+        "list_price": product.get("list_price"),
+    }

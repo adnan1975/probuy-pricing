@@ -57,3 +57,41 @@ uvicorn main:app --reload
 ```
 
 to put back playwright in render && PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/.playwright-browsers python -m playwright install chromium
+
+## Shopify Publish SQL Diagnostics
+
+Inspect SKU fields:
+
+```sql
+select id, source_product_key, source_model_no
+from probuy.source_products
+where id = '0030ebf3-6013-4729-8256-c052db5cee19';
+```
+
+Inspect all price rows in selection order:
+
+```sql
+select source_product_id, list_price, effective_at, pricing_update_date, updated_at
+from probuy.source_product_prices
+where source_product_id = '0030ebf3-6013-4729-8256-c052db5cee19'
+order by coalesce(effective_at, pricing_update_date, updated_at) desc;
+```
+
+Reproduce latest selected price row:
+
+```sql
+select source_product_id, list_price, effective_at, pricing_update_date, updated_at
+from probuy.source_product_prices
+where source_product_id = '0030ebf3-6013-4729-8256-c052db5cee19'
+order by coalesce(effective_at, pricing_update_date, updated_at) desc
+limit 1;
+```
+
+Inspect Shopify publication status:
+
+```sql
+select source_product_id, channel_code, publication_status, last_error, metadata, updated_at
+from probuy.product_channel_publications
+where source_product_id = '0030ebf3-6013-4729-8256-c052db5cee19'
+  and upper(channel_code) = 'SHOPIFY';
+```
