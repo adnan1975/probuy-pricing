@@ -184,14 +184,30 @@ class ShopifyProductService:
         return product
 
     def _load_latest_price_row(self, source_product_id: str) -> dict[str, Any] | None:
-        endpoint = (
+        base_endpoint = (
             f"{settings.supabase_url}/rest/v1/source_product_prices?source_product_id=eq.{source_product_id}"
             "&select=list_price,effective_at,pricing_update_date,updated_at"
-            "&order=coalesce(effective_at,pricing_update_date,updated_at).desc&limit=1"
         )
-        response = self._request_supabase("GET", endpoint)
+        endpoint = f"{base_endpoint}&order=coalesce(effective_at,pricing_update_date,updated_at).desc&limit=1"
+        try:
+            response = self._request_supabase("GET", endpoint)
+        except requests.HTTPError as exc:
+            status_code = exc.response.status_code if exc.response is not None else None
+            if status_code != 400:
+                raise
+            # Some PostgREST/Supabase configurations reject function-based ordering.
+            # Fall back to a simple timestamp sort and compute recency locally.
+            fallback_endpoint = f"{base_endpoint}&order=updated_at.desc&limit=25"
+            response = self._request_supabase("GET", fallback_endpoint)
+
         rows = response.json()
-        return rows[0] if rows else None
+        if not rows:
+            return None
+
+        def _sort_key(row: dict[str, Any]) -> str:
+            return str(row.get("effective_at") or row.get("pricing_update_date") or row.get("updated_at") or "")
+
+        return max(rows, key=_sort_key)
 
     def _load_or_create_publication(self, source_product_id: str) -> dict[str, Any]:
         endpoint = f"{settings.supabase_url}/rest/v1/product_channel_publications?source_product_id=eq.{source_product_id}&select=*"
