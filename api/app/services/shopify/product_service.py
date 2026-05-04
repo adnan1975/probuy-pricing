@@ -8,7 +8,7 @@ from requests import Response
 
 from app.config import settings
 from app.services.shopify.client import ShopifyClient
-from app.services.shopify.product_mapper import map_product_to_product_set_input, validate_product_for_shopify
+from app.services.shopify.product_mapper import map_product_to_product_set_input, normalize_price, normalize_sku, validate_product_for_shopify
 from app.services.shopify.sync_log_service import ShopifySyncLogService
 
 logger = logging.getLogger(__name__)
@@ -29,11 +29,15 @@ class ShopifyProductService:
         triggered_by_user_id: str | None = None,
     ) -> dict[str, Any]:
         product = self._load_source_product(source_product_id)
+        logger.info("shopify_publish_loaded_product", extra={"source_product_id": source_product_id, "source_product_key": product.get("source_product_key"), "source_model_no": product.get("source_model_no")})
         publication = self._load_or_create_publication(source_product_id)
 
         product_input, mapper_errors = map_product_to_product_set_input(product)
+        variant = (product_input.get("variants") or [{}])[0]
+        logger.info("shopify_publish_transform", extra={"source_product_id": source_product_id, "candidate_sku_inputs": {"source_product_key": product.get("source_product_key"), "source_model_no": product.get("source_model_no"), "transformed_sku": variant.get("sku")}, "candidate_price_inputs": {"list_price_raw": product.get("list_price"), "normalized_decimal": str(normalize_price(product.get("list_price"))) if normalize_price(product.get("list_price")) is not None else None}})
         product_input["status"] = status
         validation_errors = mapper_errors + validate_product_for_shopify(product_input)
+        logger.info("shopify_publish_validation", extra={"source_product_id": source_product_id, "payload_variant_sku": variant.get("sku"), "payload_variant_price": variant.get("price"), "validation_errors": validation_errors})
 
         if validation_errors:
             error_text = "; ".join(validation_errors)
@@ -169,7 +173,25 @@ class ShopifyProductService:
         rows = response.json()
         if not rows:
             raise ValueError("Source product not found")
-        return rows[0]
+
+        product = rows[0]
+        latest_price = self._load_latest_price_row(source_product_id)
+        if latest_price and latest_price.get("list_price") is not None:
+            product["list_price"] = latest_price.get("list_price")
+        product["normalized_sku"] = normalize_sku(product)
+        normalized_list_price = normalize_price(product.get("list_price"))
+        product["normalized_list_price"] = f"{normalized_list_price:.2f}" if normalized_list_price is not None else None
+        return product
+
+    def _load_latest_price_row(self, source_product_id: str) -> dict[str, Any] | None:
+        endpoint = (
+            f"{settings.supabase_url}/rest/v1/source_product_prices?source_product_id=eq.{source_product_id}"
+            "&select=list_price,effective_at,pricing_update_date,updated_at"
+            "&order=coalesce(effective_at,pricing_update_date,updated_at).desc&limit=1"
+        )
+        response = self._request_supabase("GET", endpoint)
+        rows = response.json()
+        return rows[0] if rows else None
 
     def _load_or_create_publication(self, source_product_id: str) -> dict[str, Any]:
         endpoint = f"{settings.supabase_url}/rest/v1/product_channel_publications?source_product_id=eq.{source_product_id}&select=*"
