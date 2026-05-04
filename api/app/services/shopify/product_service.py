@@ -80,9 +80,35 @@ class ShopifyProductService:
         result = self.client.graphql(mutation, variables, operation_name="ProductSet")
         if not result.ok:
             err = result.error or {"message": "Unknown Shopify error"}
-            all_errors = [err.get("message", "Unknown error")] + [e.message for e in result.graphql_errors]
-            all_errors.extend(str(e.get("message")) for e in result.user_errors if isinstance(e, dict))
+            graphql_error_messages = [e.message for e in result.graphql_errors]
+            user_error_messages = [str(e.get("message")) for e in result.user_errors if isinstance(e, dict)]
+            all_errors = [err.get("message", "Unknown error")] + graphql_error_messages
+            all_errors.extend(user_error_messages)
             error_text = "; ".join([e for e in all_errors if e])
+            logger.error(
+                "shopify_product_set_failed",
+                extra={
+                    "source_product_id": source_product_id,
+                    "shopify_status_code": result.status_code,
+                    "shopify_operation": result.operation_name,
+                    "shopify_error_type": (err or {}).get("type"),
+                    "shopify_error_message": (err or {}).get("message"),
+                    "graphql_errors": [
+                        {"message": e.message, "path": e.path, "extensions": e.extensions}
+                        for e in result.graphql_errors
+                    ],
+                    "user_errors": result.user_errors,
+                    "payload_summary": {
+                        "id": product_input.get("id"),
+                        "handle": product_input.get("handle"),
+                        "title": product_input.get("title"),
+                        "category": product_input.get("category"),
+                        "product_options": product_input.get("productOptions"),
+                        "variant_keys": sorted(list((variant or {}).keys())),
+                        "variant_option_values": (variant or {}).get("optionValues"),
+                    },
+                },
+            )
             self._update_publication(publication, "FAILED", error_text, metadata)
             self.sync_logs.log(
                 action="SHOPIFY_PRODUCT_SET",
