@@ -172,13 +172,27 @@ class ShopifyProductService:
         return rows[0]
 
     def _load_or_create_publication(self, source_product_id: str) -> dict[str, Any]:
-        endpoint = f"{settings.supabase_url}/rest/v1/product_channel_publications?source_product_id=eq.{source_product_id}&channel_code=eq.SHOPIFY&select=*"
+        endpoint = f"{settings.supabase_url}/rest/v1/product_channel_publications?source_product_id=eq.{source_product_id}&select=*"
         response = self._request_supabase("GET", endpoint)
         rows = response.json()
         if rows:
+            for row in rows:
+                if str(row.get("channel_code") or "").upper() == "SHOPIFY":
+                    return row
             return rows[0]
+
         payload = {"source_product_id": source_product_id, "channel_code": "SHOPIFY", "publication_status": "NOT_PUBLISHED", "metadata": {}}
-        create = self._request_supabase("POST", f"{settings.supabase_url}/rest/v1/product_channel_publications", headers={**self._headers(), "Prefer": "return=representation"}, json=payload)
+        endpoint = f"{settings.supabase_url}/rest/v1/product_channel_publications"
+        try:
+            create = self._request_supabase("POST", endpoint, headers={**self._headers(), "Prefer": "return=representation"}, json=payload)
+        except requests.HTTPError as exc:
+            status_code = exc.response.status_code if exc.response is not None else None
+            body_text = (exc.response.text if exc.response is not None else "").lower()
+            if status_code == 400 and "channel_code" in body_text:
+                legacy_payload = {"source_product_id": source_product_id, "publication_status": "NOT_PUBLISHED", "metadata": {}}
+                create = self._request_supabase("POST", endpoint, headers={**self._headers(), "Prefer": "return=representation"}, json=legacy_payload)
+            else:
+                raise
         body = create.json()
         return body[0]
 
