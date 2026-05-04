@@ -77,6 +77,7 @@ class Settings:
     shopify_default_product_status: str = os.getenv("SHOPIFY_DEFAULT_PRODUCT_STATUS", "DRAFT").upper()
     shopify_publish_by_default: bool = _to_bool(os.getenv("SHOPIFY_PUBLISH_BY_DEFAULT"), False)
     shopify_online_store_publication_id: str | None = os.getenv("SHOPIFY_ONLINE_STORE_PUBLICATION_ID")
+    shopify_admin_token: str | None = os.getenv("SHOPIFY_ADMIN_TOKEN")
 
 
 settings = Settings()

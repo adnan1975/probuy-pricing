@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 
 from app.routers.search import router as search_router
+from app.routers.shopify import router as shopify_router
 from app.utils.memory import get_rss_mb
 
 logging.basicConfig(
@@ -100,3 +101,4 @@ def home() -> dict[str, str]:
 
 
 app.include_router(search_router)
+app.include_router(shopify_router)
