@@ -137,17 +137,14 @@ class ShopifyProductService:
         active_profile = request_headers.get("Accept-Profile", "probuy")
 
         response = requests.request(method, endpoint, headers=request_headers, timeout=20, **kwargs)
-        if response.status_code != 406:
-            response.raise_for_status()
-            return response
+        if response.status_code == 406:
+            logger.error("supabase_profile_not_acceptable", extra={"endpoint": endpoint, "profile": active_profile})
+            raise RuntimeError(
+                f"Supabase rejected profile '{active_profile}'. Ensure the schema is exposed in Supabase REST API settings."
+            )
 
-        logger.warning("supabase_profile_not_acceptable", extra={"endpoint": endpoint, "profile": active_profile})
-        fallback_headers = dict(request_headers)
-        fallback_headers["Accept-Profile"] = "public"
-        fallback_headers["Content-Profile"] = "public"
-        fallback_response = requests.request(method, endpoint, headers=fallback_headers, timeout=20, **kwargs)
-        fallback_response.raise_for_status()
-        return fallback_response
+        response.raise_for_status()
+        return response
 
     def _load_source_product(self, source_product_id: str) -> dict[str, Any]:
         endpoint = f"{settings.supabase_url}/rest/v1/source_products?id=eq.{source_product_id}&select=*"
@@ -164,8 +161,8 @@ class ShopifyProductService:
                 message = " ".join(str(body.get(k, "")) for k in ("message", "details", "hint")).lower()
                 if "schema cache" in message or "could not find the table" in message:
                     raise RuntimeError(
-                        "Supabase could not find 'source_products' in either schema profile. "
-                        "Verify REST-exposed schemas and table location for 'probuy'/'public'."
+                        "Supabase could not find 'source_products' in the configured 'probuy' schema profile. "
+                        "Verify the table location and REST-exposed schema settings."
                     ) from exc
                 raise ValueError(f"Source product not found: {source_product_id}") from exc
             raise
