@@ -100,6 +100,13 @@ async def catalog_all_items() -> list[CatalogItem]:
     return [CatalogItem(**item.__dict__) for item in items]
 
 
+
+
+@router.get("/catalog/dashboard-stats")
+async def catalog_dashboard_stats() -> dict[str, object]:
+    logger.info("Received /catalog/dashboard-stats request")
+    return scn_catalog_service.fetch_dashboard_stats()
+
 @router.get("/catalog/health")
 async def catalog_health() -> dict[str, str | int | bool]:
     logger.info("Received /catalog/health request")

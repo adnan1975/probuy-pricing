@@ -139,6 +139,82 @@ class SCNCatalogService:
 
         return values
 
+
+    def fetch_dashboard_stats(self) -> dict[str, object]:
+        if not settings.supabase_url or not settings.supabase_service_role_key:
+            return {
+                "total_products": 0,
+                "total_published_products": 0,
+                "total_categories": 0,
+                "channel_counts": {},
+                "warning": "Supabase credentials are not configured.",
+                "table": None,
+            }
+
+        dashboard_table = (settings.supabase_dashboard_table or settings.scn_table).strip()
+        endpoint = f"{settings.supabase_url}/rest/v1/{dashboard_table}"
+        headers = {
+            "apikey": settings.supabase_service_role_key,
+            "Authorization": f"Bearer {settings.supabase_service_role_key}",
+            "Accept-Profile": settings.supabase_schema,
+        }
+        params = {
+            "select": "publication_status,category,channel_code",
+            "limit": "1000",
+            "offset": "0",
+        }
+
+        rows: list[dict] = []
+        while True:
+            response = requests.get(endpoint, params=params, headers=headers, timeout=15)
+            if not response.ok:
+                return {
+                    "total_products": 0,
+                    "total_published_products": 0,
+                    "total_categories": 0,
+                    "channel_counts": {},
+                    "warning": (
+                        f"Supabase stats query failed with status {response.status_code} on table {dashboard_table}. "
+                        "Set SUPABASE_DASHBOARD_TABLE to your catalog table."
+                        if response.status_code == 404
+                        else f"Supabase stats query failed with status {response.status_code} on table {dashboard_table}."
+                    ),
+                    "table": dashboard_table,
+                }
+            payload = response.json()
+            if not isinstance(payload, list):
+                break
+            if not payload:
+                break
+            rows.extend(payload)
+            params["offset"] = str(int(params["offset"]) + int(params["limit"]))
+
+        category_set: set[str] = set()
+        channel_counts: dict[str, int] = {}
+        published_count = 0
+
+        for row in rows:
+            publication_status = str(row.get("publication_status") or "").strip().lower()
+            if publication_status == "published":
+                published_count += 1
+
+            category = str(row.get("category") or "").strip()
+            if category:
+                category_set.add(category)
+
+            channel = str(row.get("channel_code") or "").strip().lower()
+            if channel:
+                channel_counts[channel] = channel_counts.get(channel, 0) + 1
+
+        return {
+            "total_products": len(rows),
+            "total_published_products": published_count,
+            "total_categories": len(category_set),
+            "channel_counts": channel_counts,
+            "warning": None,
+            "table": dashboard_table,
+        }
+
     def _load_from_supabase(self, query: str | None = None, row_cap: int | None = None) -> list[SCNItem]:
         self._supabase_attempted = False
         self._supabase_fallback_reason = None

@@ -117,3 +117,12 @@ export async function fetchAutomatedPricingStatus({ apiUrl, jobId, signal }) {
 export function openAutomatedPricingStream({ apiUrl, jobId }) {
   return new EventSource(`${apiUrl}/automated-pricing/${jobId}/stream`);
 }
+
+
+export async function fetchDashboardCatalogStats({ apiUrl, signal }) {
+  const response = await fetch(`${apiUrl}/catalog/dashboard-stats`, { signal });
+  if (!response.ok) {
+    throw new Error(`Backend returned ${response.status} fetching dashboard stats`);
+  }
+  return response.json();
+}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 import { API_URL, SOURCE_MATCH_THRESHOLD_POLICY } from "./search/constants";
-import { fetchAutomatedPricingStatus, fetchStep1Results, openAutomatedPricingStream, startAutomatedPricing } from "./search/searchApi";
+import { fetchAutomatedPricingStatus, fetchDashboardCatalogStats, fetchStep1Results, openAutomatedPricingStream, startAutomatedPricing } from "./search/searchApi";
 import { SearchResultsPanel } from "./search/SearchResultsPanel";
 import { useFilterState } from "./search/useFilterState";
 import { useProductDetailExpansion } from "./search/useProductDetailExpansion";
@@ -40,6 +40,13 @@ function App() {
   const [includeLowConfidenceKmsInSuggestedPrice, setIncludeLowConfidenceKmsInSuggestedPrice] = useState(false);
   const [unitSizeFilter, setUnitSizeFilter] = useState("");
   const [facetDistribution, setFacetDistribution] = useState({});
+  const [dashboardCatalogStats, setDashboardCatalogStats] = useState({
+    total_products: 0,
+    total_published_products: 0,
+    total_categories: 0,
+    channel_counts: {},
+    warning: null
+  });
   const [autoPricingJobId, setAutoPricingJobId] = useState("");
   const [autoPricingRows, setAutoPricingRows] = useState([]);
   const [autoPricingStatus, setAutoPricingStatus] = useState("idle");
@@ -334,11 +341,53 @@ function App() {
     setTotalResults(visibleResults.length + connectorOffers.length);
   }, [detailsState, visibleResults]);
 
+  useEffect(() => {
+    if (activePage !== "Dashboard") {
+      return;
+    }
+
+    const controller = new AbortController();
+    fetchDashboardCatalogStats({ apiUrl: API_URL, signal: controller.signal })
+      .then((payload) => {
+        setDashboardCatalogStats({
+          total_products: Number(payload?.total_products || 0),
+          total_published_products: Number(payload?.total_published_products || 0),
+          total_categories: Number(payload?.total_categories || 0),
+          channel_counts: payload?.channel_counts && typeof payload.channel_counts === "object" ? payload.channel_counts : {},
+          warning: payload?.warning || null
+        });
+      })
+      .catch(() => {
+        setDashboardCatalogStats((previous) => ({
+          ...previous,
+          warning: "Could not load dashboard stats from Supabase."
+        }));
+      });
+
+    return () => controller.abort();
+  }, [activePage]);
+
   const dashboardStats = [
-    { label: "Catalog SKUs under review", value: "12,481", trend: "+4.2% this week" },
-    { label: "Rows with margin risk", value: "318", trend: "-1.8% vs last run" },
-    { label: "Price updates published", value: "96", trend: "+12 today" },
-    { label: "Connectors healthy", value: "4 / 4", trend: "No outages in 24h" }
+    {
+      label: "Total published products",
+      value: dashboardCatalogStats.total_published_products.toLocaleString(),
+      trend: "Loaded from Supabase catalog"
+    },
+    {
+      label: "Total categories",
+      value: dashboardCatalogStats.total_categories.toLocaleString(),
+      trend: "Unique categories in Supabase"
+    },
+    {
+      label: "Shopify products",
+      value: Number(dashboardCatalogStats.channel_counts?.shopify || 0).toLocaleString(),
+      trend: "Products mapped to channel_code = shopify"
+    },
+    {
+      label: "Method products",
+      value: Number(dashboardCatalogStats.channel_counts?.method || 0).toLocaleString(),
+      trend: "Products mapped to channel_code = method"
+    }
   ];
 
   useEffect(() => {
@@ -463,6 +512,11 @@ function App() {
                 <p>Track pricing health, margin exposure, and publishing cadence for internal merchandising workflows.</p>
               </div>
             </div>
+            {dashboardCatalogStats.warning && (
+              <div className="panel" role="status">
+                <p className="panel-subtext">{dashboardCatalogStats.warning}</p>
+              </div>
+            )}
             <div className="summary-grid four-cols">
               {dashboardStats.map((stat) => (
                 <div className="summary-card" key={stat.label}>
@@ -471,6 +525,28 @@ function App() {
                   <div className="trend">{stat.trend}</div>
                 </div>
               ))}
+            </div>
+            <div className="panel">
+              <h2>Channel stats</h2>
+              <p className="panel-subtext">Totals grouped by <code>channel_code</code> from the loaded catalog facets.</p>
+              <div className="detail-grid">
+                <div><strong>Total channel products</strong><div>{Object.values(dashboardCatalogStats.channel_counts || {}).reduce((total, count) => total + Number(count || 0), 0).toLocaleString()}</div></div>
+                <div><strong>Tracked channels</strong><div>{Object.keys(dashboardCatalogStats.channel_counts || {}).length}</div></div>
+              </div>
+              {Object.keys(dashboardCatalogStats.channel_counts || {}).length > 0 ? (
+                <div className="details-grid">
+                  {Object.entries(dashboardCatalogStats.channel_counts || {})
+                    .sort((left, right) => right[1] - left[1])
+                    .map(([channel, count]) => (
+                      <div className="details-card" key={channel}>
+                        <div className="table-strong">{channel}</div>
+                        <div className="table-sub">{count.toLocaleString()} products</div>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <p className="panel-subtext">Run a product search in Pricing to populate channel-level dashboard stats.</p>
+              )}
             </div>
             <div className="panel">
               <h2>30-day distributor cost vs list price variance</h2>
