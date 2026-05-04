@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 import requests
+from requests import Response
 
 from app.config import settings
 from app.services.shopify.client import ShopifyClient
@@ -128,30 +129,74 @@ class ShopifyProductService:
             "Content-Type": "application/json",
         }
 
+
+    def _request_supabase(self, method: str, endpoint: str, **kwargs: Any) -> Response:
+        request_headers = dict(self._headers())
+        extra_headers = kwargs.pop("headers", None) or {}
+        request_headers.update(extra_headers)
+        active_profile = request_headers.get("Accept-Profile", "probuy")
+
+        response = requests.request(method, endpoint, headers=request_headers, timeout=20, **kwargs)
+        if response.status_code == 406:
+            logger.error("supabase_profile_not_acceptable", extra={"endpoint": endpoint, "profile": active_profile})
+            raise RuntimeError(
+                f"Supabase rejected profile '{active_profile}'. Ensure the schema is exposed in Supabase REST API settings."
+            )
+
+        response.raise_for_status()
+        return response
+
     def _load_source_product(self, source_product_id: str) -> dict[str, Any]:
         endpoint = f"{settings.supabase_url}/rest/v1/source_products?id=eq.{source_product_id}&select=*"
-        response = requests.get(endpoint, headers=self._headers(), timeout=20)
-        response.raise_for_status()
+        try:
+            response = self._request_supabase("GET", endpoint)
+        except requests.HTTPError as exc:
+            status_code = exc.response.status_code if exc.response is not None else None
+            if status_code == 404:
+                body: dict[str, Any] = {}
+                try:
+                    body = exc.response.json() if exc.response is not None else {}
+                except ValueError:
+                    body = {}
+                message = " ".join(str(body.get(k, "")) for k in ("message", "details", "hint")).lower()
+                if "schema cache" in message or "could not find the table" in message:
+                    raise RuntimeError(
+                        "Supabase could not find 'source_products' in the configured 'probuy' schema profile. "
+                        "Verify the table location and REST-exposed schema settings."
+                    ) from exc
+                raise ValueError(f"Source product not found: {source_product_id}") from exc
+            raise
         rows = response.json()
         if not rows:
             raise ValueError("Source product not found")
         return rows[0]
 
     def _load_or_create_publication(self, source_product_id: str) -> dict[str, Any]:
-        endpoint = f"{settings.supabase_url}/rest/v1/product_channel_publications?source_product_id=eq.{source_product_id}&channel_code=eq.SHOPIFY&select=*"
-        response = requests.get(endpoint, headers=self._headers(), timeout=20)
-        response.raise_for_status()
+        endpoint = f"{settings.supabase_url}/rest/v1/product_channel_publications?source_product_id=eq.{source_product_id}&select=*"
+        response = self._request_supabase("GET", endpoint)
         rows = response.json()
         if rows:
+            for row in rows:
+                if str(row.get("channel_code") or "").upper() == "SHOPIFY":
+                    return row
             return rows[0]
+
         payload = {"source_product_id": source_product_id, "channel_code": "SHOPIFY", "publication_status": "NOT_PUBLISHED", "metadata": {}}
-        create = requests.post(f"{settings.supabase_url}/rest/v1/product_channel_publications", headers={**self._headers(), "Prefer": "return=representation"}, json=payload, timeout=20)
-        create.raise_for_status()
+        endpoint = f"{settings.supabase_url}/rest/v1/product_channel_publications"
+        try:
+            create = self._request_supabase("POST", endpoint, headers={**self._headers(), "Prefer": "return=representation"}, json=payload)
+        except requests.HTTPError as exc:
+            status_code = exc.response.status_code if exc.response is not None else None
+            body_text = (exc.response.text if exc.response is not None else "").lower()
+            if status_code == 400 and "channel_code" in body_text:
+                legacy_payload = {"source_product_id": source_product_id, "publication_status": "NOT_PUBLISHED", "metadata": {}}
+                create = self._request_supabase("POST", endpoint, headers={**self._headers(), "Prefer": "return=representation"}, json=legacy_payload)
+            else:
+                raise
         body = create.json()
         return body[0]
 
     def _update_publication(self, publication_id: str, status: str, error: str | None, metadata: dict[str, Any]) -> None:
         payload = {"publication_status": status, "last_error": error, "metadata": metadata}
         endpoint = f"{settings.supabase_url}/rest/v1/product_channel_publications?id=eq.{publication_id}"
-        response = requests.patch(endpoint, headers=self._headers(), json=payload, timeout=20)
-        response.raise_for_status()
+        self._request_supabase("PATCH", endpoint, json=payload)
