@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from threading import Lock
 from dataclasses import dataclass
 from typing import Any
 
@@ -42,6 +43,8 @@ class ShopifyClient:
         self.api_version = settings.shopify_api_version
         self.client_id = (settings.shopify_client_id or "").strip()
         self.client_secret = settings.shopify_client_secret
+        self._oauth_access_token: str | None = None
+        self._token_lock = Lock()
 
     @property
     def configured(self) -> bool:
@@ -75,9 +78,23 @@ class ShopifyClient:
                 error={"type": "configuration_error", "message": "Shopify client is not fully configured."},
             )
 
+        access_token = self._get_access_token(timeout_seconds=timeout_seconds)
+        if not access_token:
+            return ShopifyGraphQLResult(
+                ok=False,
+                operation_name=op_name,
+                status_code=None,
+                duration_ms=(time.perf_counter() - start) * 1000,
+                data=None,
+                graphql_errors=[],
+                user_errors=[],
+                error={"type": "auth_error", "message": "Failed to obtain Shopify access token."},
+            )
+
         headers = {
             "Content-Type": "application/json",
-            "X-Shopify-Access-Token": self.client_secret,
+            "Authorization": f"Bearer {access_token}",
+            "X-Shopify-Access-Token": access_token,
             "X-Shopify-Api-Key": self.client_id,
         }
         if idempotency_key:
@@ -194,6 +211,42 @@ class ShopifyClient:
             user_errors=user_errors,
             error=last_error,
         )
+
+
+    def _get_access_token(self, *, timeout_seconds: float) -> str | None:
+        if self._oauth_access_token:
+            return self._oauth_access_token
+
+        with self._token_lock:
+            if self._oauth_access_token:
+                return self._oauth_access_token
+
+            token_endpoint = f"https://{self.store_domain}/admin/oauth/access_token"
+            payload = {
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "grant_type": "client_credentials",
+            }
+            try:
+                response = requests.post(
+                    token_endpoint,
+                    headers={"Content-Type": "application/json"},
+                    data=json.dumps(payload),
+                    timeout=timeout_seconds,
+                )
+                response.raise_for_status()
+                body = response.json()
+            except (requests.RequestException, ValueError) as exc:
+                logger.error("shopify_access_token_request_failed domain=%s error=%s", self.store_domain, str(exc))
+                return None
+
+            token = str(body.get("access_token") or "").strip()
+            if not token:
+                logger.error("shopify_access_token_missing domain=%s body_keys=%s", self.store_domain, list(body.keys()))
+                return None
+
+            self._oauth_access_token = token
+            return self._oauth_access_token
 
     @staticmethod
     def _extract_operation_name(query: str) -> str:
