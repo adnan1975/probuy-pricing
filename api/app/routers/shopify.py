@@ -18,21 +18,8 @@ class ShopifyPublishRequest(BaseModel):
     forceUpdate: bool = False
 
 
-
-
-@router.get("/api/channels/shopify/products/{sourceProductId}/publish")
-@router.get("/channels/shopify/products/{sourceProductId}/publish")
-@router.get("/api/api/channels/shopify/products/{sourceProductId}/publish")
-def publish_product_help(sourceProductId: str = Path(..., min_length=1)) -> dict[str, str]:
-    return {
-        "detail": "Use POST with JSON body to publish product to Shopify",
-        "source_product_id": sourceProductId,
-    }
-
-
 @router.post("/api/channels/shopify/products/{sourceProductId}/publish")
 @router.post("/channels/shopify/products/{sourceProductId}/publish")
-@router.post("/api/api/channels/shopify/products/{sourceProductId}/publish")
 def publish_product(
     payload: ShopifyPublishRequest,
     sourceProductId: str = Path(..., min_length=1),
