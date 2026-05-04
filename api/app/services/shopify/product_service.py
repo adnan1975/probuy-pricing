@@ -37,7 +37,7 @@ class ShopifyProductService:
 
         if validation_errors:
             error_text = "; ".join(validation_errors)
-            self._update_publication(publication["id"], "NEEDS_REVIEW", error_text, publication.get("metadata") or {})
+            self._update_publication(publication, "NEEDS_REVIEW", error_text, publication.get("metadata") or {})
             self.sync_logs.log(
                 action="SHOPIFY_PRODUCT_SET",
                 status="SKIPPED",
@@ -71,7 +71,7 @@ class ShopifyProductService:
         }
         """
         variables = {"input": product_input, "synchronous": True}
-        self._update_publication(publication["id"], "QUEUED", None, metadata)
+        self._update_publication(publication, "QUEUED", None, metadata)
 
         result = self.client.graphql(mutation, variables, operation_name="ProductSet")
         if not result.ok:
@@ -79,7 +79,7 @@ class ShopifyProductService:
             all_errors = [err.get("message", "Unknown error")] + [e.message for e in result.graphql_errors]
             all_errors.extend(str(e.get("message")) for e in result.user_errors if isinstance(e, dict))
             error_text = "; ".join([e for e in all_errors if e])
-            self._update_publication(publication["id"], "FAILED", error_text, metadata)
+            self._update_publication(publication, "FAILED", error_text, metadata)
             self.sync_logs.log(
                 action="SHOPIFY_PRODUCT_SET",
                 status="FAILED",
@@ -102,7 +102,7 @@ class ShopifyProductService:
             }
         )
         final_status = "PUBLISHED" if publish else "QUEUED"
-        self._update_publication(publication["id"], final_status, None, new_metadata)
+        self._update_publication(publication, final_status, None, new_metadata)
         self.sync_logs.log(
             action="SHOPIFY_PRODUCT_SET",
             status="SUCCESS",
@@ -196,7 +196,40 @@ class ShopifyProductService:
         body = create.json()
         return body[0]
 
-    def _update_publication(self, publication_id: str, status: str, error: str | None, metadata: dict[str, Any]) -> None:
-        payload = {"publication_status": status, "last_error": error, "metadata": metadata}
+    def _update_publication(self, publication: dict[str, Any], status: str, error: str | None, metadata: dict[str, Any]) -> None:
+        publication_id = str(publication.get("id") or "")
+        if not publication_id:
+            logger.warning("shopify_publication_update_skipped_missing_id")
+            return
+
+        available_fields = set(publication.keys())
+        payload: dict[str, Any] = {}
+        if "publication_status" in available_fields:
+            payload["publication_status"] = status
+        if "last_error" in available_fields:
+            payload["last_error"] = error
+        if "metadata" in available_fields:
+            payload["metadata"] = metadata
+        if not payload:
+            logger.warning("shopify_publication_update_skipped_no_mutable_columns", extra={"publication_id": publication_id})
+            return
+
         endpoint = f"{settings.supabase_url}/rest/v1/product_channel_publications?id=eq.{publication_id}"
-        self._request_supabase("PATCH", endpoint, json=payload)
+        try:
+            self._request_supabase("PATCH", endpoint, json=payload)
+        except requests.HTTPError as exc:
+            status_code = exc.response.status_code if exc.response is not None else None
+            body_text = (exc.response.text if exc.response is not None else "").lower()
+            if status_code == 400:
+                # Legacy schemas can miss last_error/metadata columns; retry with status-only patch.
+                status_only_payload = {"publication_status": status}
+                try:
+                    self._request_supabase("PATCH", endpoint, json=status_only_payload)
+                    logger.warning("shopify_publication_update_legacy_fallback", extra={"publication_id": publication_id, "status": status})
+                except Exception:
+                    logger.warning("shopify_publication_update_legacy_fallback_failed", extra={"publication_id": publication_id, "status": status})
+                return
+            logger.warning(
+                "shopify_publication_update_failed",
+                extra={"publication_id": publication_id, "status": status, "status_code": status_code, "error": body_text[:300]},
+            )
