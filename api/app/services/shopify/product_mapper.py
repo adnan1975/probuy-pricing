@@ -42,6 +42,13 @@ def normalize_price(value: Any) -> Decimal | None:
     return amount
 
 
+
+
+def _valid_shopify_gid(value: str) -> bool:
+    text = _clean_text(value)
+    return text.startswith("gid://") and len(text) > len("gid://")
+
+
 def normalize_sku(product: dict[str, Any]) -> str:
     canonical = _clean_text(product.get("source_product_key"))
     if canonical:
@@ -97,12 +104,20 @@ def map_product_to_product_set_input(product: dict[str, Any]) -> tuple[dict[str,
     normalized_cost = normalize_price(product.get("cost") or product.get("cost_price"))
     cost = f"{normalized_cost:.2f}" if normalized_cost is not None else None
 
+    default_option_name = "Title"
+    default_option_value = _first_non_empty(product.get("variant_option_value"), "Default Title")
+
     variant = {
         "sku": sku,
         "price": price,
         "barcode": _first_non_empty(product.get("barcode"), product.get("upc"), product.get("ean")),
-        "requiresShipping": bool(product.get("requires_shipping", True)),
-        "taxable": bool(product.get("taxable", True)),
+        # ProductSetInput variants use optionValues; omitting this can cause hard validation failures.
+        "optionValues": [
+            {
+                "optionName": default_option_name,
+                "name": default_option_value,
+            }
+        ],
         "inventoryItem": {
             "cost": cost,
             "measurement": {
@@ -144,13 +159,17 @@ def map_product_to_product_set_input(product: dict[str, Any]) -> tuple[dict[str,
         "descriptionHtml": description_html,
         "vendor": brand,
         "productType": _first_non_empty(product.get("product_type"), product.get("category"), "General"),
-        "category": _first_non_empty(product.get("shopify_category"), product.get("category"), "Uncategorized"),
         "tags": tags,
         "status": _first_non_empty(product.get("shopify_status"), "DRAFT"),
+        "productOptions": [{"name": default_option_name, "values": [{"name": default_option_value}]}],
         "variants": [variant],
         "metafields": metafields,
         "files": valid_images,
     }
+
+    category_gid = _first_non_empty(product.get("shopify_category_gid"), product.get("shopify_category"))
+    if _valid_shopify_gid(category_gid):
+        product_input["category"] = category_gid
 
     return product_input, errors
 
