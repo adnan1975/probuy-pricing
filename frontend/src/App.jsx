@@ -7,6 +7,7 @@ import { useFilterState } from "./search/useFilterState";
 import { useProductDetailExpansion } from "./search/useProductDetailExpansion";
 import { useSearchHistoryTypeahead } from "./search/useSearchHistoryTypeahead";
 import { useSearchInput } from "./search/useSearchInput";
+import { fetchProductPublicationStatus, publishProductToShopifyDraft } from "./integrations/probuyProductSearch";
 
 const topMenuItems = ["Dashboard", "Pricing", "Automated Pricing Test", "Settings"];
 
@@ -52,6 +53,7 @@ function App() {
   const [autoPricingStatus, setAutoPricingStatus] = useState("idle");
   const [autoPricingError, setAutoPricingError] = useState("");
   const [autoPricingProgress, setAutoPricingProgress] = useState({ processed: 0, total: 0 });
+  const [publishingBySourceProductId, setPublishingBySourceProductId] = useState({});
   const {
     searchHistory,
     searchSuggestions,
@@ -316,6 +318,58 @@ function App() {
       event.preventDefault();
       setIsSuggestionOpen(false);
       setActiveSuggestionIndex(-1);
+    }
+  }
+
+  function mergePublicationStatus(targetItem, publicationPayload) {
+    if (!publicationPayload || typeof publicationPayload !== "object") {
+      return targetItem;
+    }
+    const publications = Array.isArray(publicationPayload.product_channel_publications)
+      ? publicationPayload.product_channel_publications
+      : targetItem.product_channel_publications;
+    const shopifyPublication = Array.isArray(publications)
+      ? publications.find((entry) => entry?.channel_code === "shopify")
+      : null;
+
+    return {
+      ...targetItem,
+      product_channel_publications: publications || [],
+      publication_status: shopifyPublication?.publication_status || targetItem.publication_status,
+      channel_code: shopifyPublication?.channel_code || targetItem.channel_code,
+      last_error: shopifyPublication?.last_error || targetItem.last_error
+    };
+  }
+
+  async function handlePushShopifyDraft(item) {
+    const sourceProductId = item?.source_product_id || item?.sourceProductId;
+    if (!sourceProductId) return;
+
+    setPublishingBySourceProductId((current) => ({ ...current, [sourceProductId]: true }));
+    setResults((current) => current.map((entry) => (
+      (entry.source_product_id || entry.sourceProductId) === sourceProductId
+        ? { ...entry, publication_status: "DRAFT", last_error: "" }
+        : entry
+    )));
+
+    try {
+      const publishResponse = await publishProductToShopifyDraft(sourceProductId);
+      const statusResponse = await fetchProductPublicationStatus(sourceProductId).catch(() => null);
+      const publicationPayload = statusResponse || publishResponse;
+      setResults((current) => current.map((entry) => (
+        (entry.source_product_id || entry.sourceProductId) === sourceProductId
+          ? mergePublicationStatus(entry, publicationPayload)
+          : entry
+      )));
+    } catch (error) {
+      const errorText = error?.message || "Failed to push draft to Shopify";
+      setResults((current) => current.map((entry) => (
+        (entry.source_product_id || entry.sourceProductId) === sourceProductId
+          ? { ...entry, publication_status: "FAILED", last_error: errorText }
+          : entry
+      )));
+    } finally {
+      setPublishingBySourceProductId((current) => ({ ...current, [sourceProductId]: false }));
     }
   }
 
@@ -824,6 +878,8 @@ function App() {
                   formatSuggestedPrice={formatSuggestedPrice}
                   onToggleDetails={toggleDetails}
                   onRetryConnector={retryDetailsForConnector}
+                  onPushShopifyDraft={handlePushShopifyDraft}
+                  publishingRowState={publishingBySourceProductId}
                   onClearFilters={handleClearFiltersRecovery}
                   onUseExampleQuery={handleUseExampleQueryRecovery}
                 />

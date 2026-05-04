@@ -138,7 +138,18 @@ function mapSearchResponse(payload) {
   };
 }
 
-async function fetchWithPolicy(pathname, { signal, timeoutMs = DEFAULT_TIMEOUT_MS, retries = DEFAULT_RETRIES, queryParams } = {}) {
+async function fetchWithPolicy(
+  pathname,
+  {
+    signal,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    retries = DEFAULT_RETRIES,
+    queryParams,
+    method = "GET",
+    body,
+    headers = {}
+  } = {}
+) {
   const baseUrl = getBaseUrl();
   const requestUrl = new URL(`${baseUrl}${pathname}`);
   if (queryParams instanceof URLSearchParams) {
@@ -155,9 +166,10 @@ async function fetchWithPolicy(pathname, { signal, timeoutMs = DEFAULT_TIMEOUT_M
 
     try {
       const response = await fetch(requestUrl, {
-        method: "GET",
+        method,
         signal: controller.signal,
-        headers: { Accept: "application/json" }
+        headers: { Accept: "application/json", ...headers },
+        body
       });
 
       clearTimeout(timeoutId);
@@ -241,4 +253,45 @@ export function getProductAttributes(sourceProductId, options = {}) {
 
 export function getSearchHealth(options = {}) {
   return fetchWithPolicy("/api/search/health", options);
+}
+
+function normalizePublication(item) {
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+  return {
+    ...item,
+    source_product_id: item.source_product_id || item.sourceProductId || ""
+  };
+}
+
+export async function publishProductToShopifyDraft(sourceProductId, options = {}) {
+  if (!sourceProductId) {
+    throw new ProductSearchClientError("sourceProductId is required", { code: "INVALID_INPUT" });
+  }
+  return fetchWithPolicy(
+    `/api/channels/shopify/products/${encodeURIComponent(sourceProductId)}/publish`,
+    {
+      ...options,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ publish: false, status: "DRAFT" })
+    }
+  );
+}
+
+export async function fetchProductPublicationStatus(sourceProductId, options = {}) {
+  if (!sourceProductId) {
+    throw new ProductSearchClientError("sourceProductId is required", { code: "INVALID_INPUT" });
+  }
+  const payload = await getProductBySourceId(sourceProductId, options);
+  const publications = Array.isArray(payload?.product_channel_publications)
+    ? payload.product_channel_publications.map(normalizePublication).filter(Boolean)
+    : [];
+  return {
+    ...payload,
+    product_channel_publications: publications
+  };
 }
