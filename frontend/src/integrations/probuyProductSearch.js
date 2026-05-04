@@ -14,13 +14,17 @@ export class ProductSearchClientError extends Error {
 }
 
 function getBaseUrl() {
-  const envBase = import.meta.env.VITE_PROBUY_PRODUCT_SEARCH_API_BASE_URL;
+  const productSearchBase = import.meta.env.VITE_PROBUY_PRODUCT_SEARCH_API_BASE_URL;
+  const apiBase = import.meta.env.VITE_API_URL;
+  const envBase = productSearchBase || apiBase;
+
   if (!envBase) {
     throw new ProductSearchClientError(
-      "Missing VITE_PROBUY_PRODUCT_SEARCH_API_BASE_URL configuration for product search API base URL",
+      "Missing API base URL configuration. Set VITE_PROBUY_PRODUCT_SEARCH_API_BASE_URL (preferred) or VITE_API_URL.",
       { code: "CONFIG_ERROR" }
     );
   }
+
   return envBase.replace(/\/$/, "");
 }
 

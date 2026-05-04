@@ -22,5 +22,7 @@ The frontend requires Vite-prefixed runtime build variables:
 
 - `VITE_API_URL`: Base URL used by existing API integrations.
 - `VITE_PROBUY_PRODUCT_SEARCH_API_BASE_URL`: Base URL for the Product Search API integration (`src/integrations/probuyProductSearch.js`).
+  - This value is used first for product search + Shopify publish calls.
+  - If it is not set, the app falls back to `VITE_API_URL`.
 
 For local development, copy `.env.example` to `.env` and set both values to your backend URL (for example `http://127.0.0.1:8000`).
