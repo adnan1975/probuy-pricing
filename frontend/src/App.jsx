@@ -7,7 +7,7 @@ import { useFilterState } from "./search/useFilterState";
 import { useProductDetailExpansion } from "./search/useProductDetailExpansion";
 import { useSearchHistoryTypeahead } from "./search/useSearchHistoryTypeahead";
 import { useSearchInput } from "./search/useSearchInput";
-import { fetchProductPublicationStatus, publishProductToShopifyDraft } from "./integrations/probuyProductSearch";
+import { fetchProductPublicationStatus, publishProductToShopifyDraft } from "./integrations/shopifyApi";
 
 const topMenuItems = ["Dashboard", "Pricing", "Automated Pricing Test", "Settings"];
 
