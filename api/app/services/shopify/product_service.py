@@ -134,12 +134,14 @@ class ShopifyProductService:
         request_headers = dict(self._headers())
         extra_headers = kwargs.pop("headers", None) or {}
         request_headers.update(extra_headers)
+        active_profile = request_headers.get("Accept-Profile", "probuy")
 
         response = requests.request(method, endpoint, headers=request_headers, timeout=20, **kwargs)
         if response.status_code != 406:
             response.raise_for_status()
             return response
 
+        logger.warning("supabase_profile_not_acceptable", extra={"endpoint": endpoint, "profile": active_profile})
         fallback_headers = dict(request_headers)
         fallback_headers["Accept-Profile"] = "public"
         fallback_headers["Content-Profile"] = "public"
@@ -149,7 +151,24 @@ class ShopifyProductService:
 
     def _load_source_product(self, source_product_id: str) -> dict[str, Any]:
         endpoint = f"{settings.supabase_url}/rest/v1/source_products?id=eq.{source_product_id}&select=*"
-        response = self._request_supabase("GET", endpoint)
+        try:
+            response = self._request_supabase("GET", endpoint)
+        except requests.HTTPError as exc:
+            status_code = exc.response.status_code if exc.response is not None else None
+            if status_code == 404:
+                body: dict[str, Any] = {}
+                try:
+                    body = exc.response.json() if exc.response is not None else {}
+                except ValueError:
+                    body = {}
+                message = " ".join(str(body.get(k, "")) for k in ("message", "details", "hint")).lower()
+                if "schema cache" in message or "could not find the table" in message:
+                    raise RuntimeError(
+                        "Supabase could not find 'source_products' in either schema profile. "
+                        "Verify REST-exposed schemas and table location for 'probuy'/'public'."
+                    ) from exc
+                raise ValueError(f"Source product not found: {source_product_id}") from exc
+            raise
         rows = response.json()
         if not rows:
             raise ValueError("Source product not found")
