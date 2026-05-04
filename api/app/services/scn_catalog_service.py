@@ -148,9 +148,11 @@ class SCNCatalogService:
                 "total_categories": 0,
                 "channel_counts": {},
                 "warning": "Supabase credentials are not configured.",
+                "table": None,
             }
 
-        endpoint = f"{settings.supabase_url}/rest/v1/{settings.scn_table}"
+        dashboard_table = (settings.supabase_dashboard_table or settings.scn_table).strip()
+        endpoint = f"{settings.supabase_url}/rest/v1/{dashboard_table}"
         headers = {
             "apikey": settings.supabase_service_role_key,
             "Authorization": f"Bearer {settings.supabase_service_role_key}",
@@ -171,7 +173,13 @@ class SCNCatalogService:
                     "total_published_products": 0,
                     "total_categories": 0,
                     "channel_counts": {},
-                    "warning": f"Supabase stats query failed with status {response.status_code}.",
+                    "warning": (
+                        f"Supabase stats query failed with status {response.status_code} on table {dashboard_table}. "
+                        "Set SUPABASE_DASHBOARD_TABLE to your catalog table."
+                        if response.status_code == 404
+                        else f"Supabase stats query failed with status {response.status_code} on table {dashboard_table}."
+                    ),
+                    "table": dashboard_table,
                 }
             payload = response.json()
             if not isinstance(payload, list):
@@ -204,6 +212,7 @@ class SCNCatalogService:
             "total_categories": len(category_set),
             "channel_counts": channel_counts,
             "warning": None,
+            "table": dashboard_table,
         }
 
     def _load_from_supabase(self, query: str | None = None, row_cap: int | None = None) -> list[SCNItem]:

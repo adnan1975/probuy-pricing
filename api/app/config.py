@@ -45,6 +45,7 @@ class Settings:
     supabase_service_role_key: str | None = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
     supabase_schema: str = os.getenv("SUPABASE_SCHEMA", "pricing")
     scn_table: str = os.getenv("SUPABASE_SCN_TABLE", "scn_pricing")
+    supabase_dashboard_table: str | None = os.getenv("SUPABASE_DASHBOARD_TABLE")
     scn_batch_size: int = _to_int(os.getenv("SCN_BATCH_SIZE"), 500)
     scn_search_max_rows: int = _to_int(os.getenv("SCN_SEARCH_MAX_ROWS"), 200)
     connector_prices_table: str = os.getenv("SUPABASE_CONNECTOR_PRICES_TABLE", "connector_prices")
