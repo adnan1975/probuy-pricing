@@ -154,7 +154,7 @@ async function fetchWithPolicy(
     headers = {}
   } = {}
 ) {
-  const baseUrl = getBaseUrl();
+  const baseUrl = apiBase;
   const requestUrl = new URL(`${baseUrl}${pathname}`);
   if (queryParams instanceof URLSearchParams) {
     requestUrl.search = queryParams.toString();
