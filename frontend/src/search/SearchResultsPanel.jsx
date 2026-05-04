@@ -128,9 +128,30 @@ export function SearchResultsPanel({
   formatSuggestedPrice,
   onToggleDetails,
   onRetryConnector,
+  onPushShopifyDraft,
+  publishingRowState = {},
   onClearFilters,
   onUseExampleQuery
 }) {
+  function getPublicationInfo(item) {
+    const publications = Array.isArray(item?.product_channel_publications)
+      ? item.product_channel_publications
+      : [];
+    const shopifyPublication = publications.find((entry) => entry?.channel_code === "shopify") || null;
+    const statusValue = (shopifyPublication?.publication_status || item?.publication_status || "").toUpperCase();
+    const statusMap = {
+      NOT_PUBLISHED: "Not Published",
+      DRAFT: "Draft Created",
+      PUBLISHED: "Published",
+      FAILED: "Failed",
+      NEEDS_REVIEW: "Needs Review"
+    };
+    return {
+      statusValue,
+      statusLabel: statusMap[statusValue] || "Not Published",
+      lastError: shopifyPublication?.last_error || item?.last_error || ""
+    };
+  }
   const analysisMetrics = {
     totalResults: Number(analysis?.total_results ?? totalResults ?? 0),
     pricedResults: Number(analysis?.priced_results ?? 0),
@@ -317,13 +338,10 @@ export function SearchResultsPanel({
               ],
               [
                 (() => {
-                  const publicationStatus = typeof item.is_published === "boolean"
-                    ? (item.is_published ? "PUBLISHED" : "NOT_PUBLISHED")
-                    : (item.publication_status || "");
-                  const isNotPublished = publicationStatus === "NOT_PUBLISHED";
+                  const publication = getPublicationInfo(item);
                   return {
-                    label: "Published",
-                    value: isNotPublished ? "Not published" : (publicationStatus || "N/A")
+                    label: "Shopify Status",
+                    value: publication.statusLabel
                   };
                 })(),
                 {
@@ -340,6 +358,9 @@ export function SearchResultsPanel({
                 }
               ]
             ];
+            const sourceProductId = item.source_product_id || item.sourceProductId || "";
+            const isPublishing = Boolean(publishingRowState[sourceProductId]);
+            const publication = getPublicationInfo(item);
             return (
               <div className={`result-card ${isBestMatch ? "best-match-card" : ""}`} key={rowKey}>
                 <div className="result-card-image-grid">
@@ -379,8 +400,13 @@ export function SearchResultsPanel({
 
                 <div className="suggested-price">Suggested Price: {formatSuggestedPrice(item, idx)}</div>
                 <div className="result-card-actions">
-                  <button className="publish-btn" type="button">
-                    Publish Price
+                  <button
+                    className="publish-btn"
+                    type="button"
+                    disabled={isPublishing || !sourceProductId}
+                    onClick={() => onPushShopifyDraft?.(item)}
+                  >
+                    {isPublishing ? "Pushing..." : "Push to Shopify as Draft"}
                   </button>
                   <button
                     className="details-btn"
@@ -390,6 +416,9 @@ export function SearchResultsPanel({
                     {isExpanded ? "Hide Competitor Pricing" : "Get Competitor Pricing"}
                   </button>
                 </div>
+                {(publication.statusValue === "FAILED" || publication.statusValue === "NEEDS_REVIEW") && publication.lastError && (
+                  <div className="table-sub">Issue: {publication.lastError}</div>
+                )}
 
                 {isExpanded && (
                   <Fragment>
