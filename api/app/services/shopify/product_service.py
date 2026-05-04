@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 import requests
+from requests import Response
 
 from app.config import settings
 from app.services.shopify.client import ShopifyClient
@@ -128,10 +129,27 @@ class ShopifyProductService:
             "Content-Type": "application/json",
         }
 
+
+    def _request_supabase(self, method: str, endpoint: str, **kwargs: Any) -> Response:
+        request_headers = dict(self._headers())
+        extra_headers = kwargs.pop("headers", None) or {}
+        request_headers.update(extra_headers)
+
+        response = requests.request(method, endpoint, headers=request_headers, timeout=20, **kwargs)
+        if response.status_code != 406:
+            response.raise_for_status()
+            return response
+
+        fallback_headers = dict(request_headers)
+        fallback_headers["Accept-Profile"] = "public"
+        fallback_headers["Content-Profile"] = "public"
+        fallback_response = requests.request(method, endpoint, headers=fallback_headers, timeout=20, **kwargs)
+        fallback_response.raise_for_status()
+        return fallback_response
+
     def _load_source_product(self, source_product_id: str) -> dict[str, Any]:
         endpoint = f"{settings.supabase_url}/rest/v1/source_products?id=eq.{source_product_id}&select=*"
-        response = requests.get(endpoint, headers=self._headers(), timeout=20)
-        response.raise_for_status()
+        response = self._request_supabase("GET", endpoint)
         rows = response.json()
         if not rows:
             raise ValueError("Source product not found")
@@ -139,19 +157,16 @@ class ShopifyProductService:
 
     def _load_or_create_publication(self, source_product_id: str) -> dict[str, Any]:
         endpoint = f"{settings.supabase_url}/rest/v1/product_channel_publications?source_product_id=eq.{source_product_id}&channel_code=eq.SHOPIFY&select=*"
-        response = requests.get(endpoint, headers=self._headers(), timeout=20)
-        response.raise_for_status()
+        response = self._request_supabase("GET", endpoint)
         rows = response.json()
         if rows:
             return rows[0]
         payload = {"source_product_id": source_product_id, "channel_code": "SHOPIFY", "publication_status": "NOT_PUBLISHED", "metadata": {}}
-        create = requests.post(f"{settings.supabase_url}/rest/v1/product_channel_publications", headers={**self._headers(), "Prefer": "return=representation"}, json=payload, timeout=20)
-        create.raise_for_status()
+        create = self._request_supabase("POST", f"{settings.supabase_url}/rest/v1/product_channel_publications", headers={**self._headers(), "Prefer": "return=representation"}, json=payload)
         body = create.json()
         return body[0]
 
     def _update_publication(self, publication_id: str, status: str, error: str | None, metadata: dict[str, Any]) -> None:
         payload = {"publication_status": status, "last_error": error, "metadata": metadata}
         endpoint = f"{settings.supabase_url}/rest/v1/product_channel_publications?id=eq.{publication_id}"
-        response = requests.patch(endpoint, headers=self._headers(), json=payload, timeout=20)
-        response.raise_for_status()
+        self._request_supabase("PATCH", endpoint, json=payload)
