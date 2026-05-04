@@ -334,7 +334,7 @@ export function SearchResultsPanel({
                 { label: "Distributor Cost", value: formatCurrency(item.distributor_cost) },
               ],
               [
-                { label: "Warehouse", value: item.location || item.warehouse_location || item.warehouse || "N/A" }
+                { label: "Source Category", value: item.source_type === "distributor" ? "Distributor" : item.source_type === "retail" ? "Retail" : "N/A" }
               ],
               [
                 (() => {
@@ -406,7 +406,7 @@ export function SearchResultsPanel({
                     disabled={isPublishing || !sourceProductId}
                     onClick={() => onPushShopifyDraft?.(item)}
                   >
-                    {isPublishing ? "Pushing..." : "Push to Shopify as Draft"}
+                    {isPublishing ? "Publishing..." : "Publish"}
                   </button>
                   <button
                     className="details-btn"
