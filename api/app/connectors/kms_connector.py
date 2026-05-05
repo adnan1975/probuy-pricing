@@ -105,6 +105,7 @@ class KMSConnector(SecondaryAPIConnector):
                 or item.get("mpn")
                 or item.get("partNumber")
             )
+            model, manufacturer_model = self._extract_model_details(item)
             brand = self.normalize_ws(item.get("brand") or item.get("manufacturer")) or self.default_brand_from_title(
                 title
             )
@@ -126,6 +127,8 @@ class KMSConnector(SecondaryAPIConnector):
                     price_value=price_value,
                     currency=self.currency,
                     sku=sku or None,
+                    model=model,
+                    manufacturer_model=manufacturer_model,
                     brand=brand or None,
                     availability=item.get("listing_page_text")
                     or item.get("stockStatus")
@@ -135,7 +138,7 @@ class KMSConnector(SecondaryAPIConnector):
                     image_url=image_url,
                     confidence="High" if price_value is not None else "Medium",
                     score=88 if price_value is not None else 72,
-                    why="Parsed from KMS Searchspring search API.",
+                    why="Parsed from KMS Searchspring search API with model/attribute enrichment from search payload.",
                 )
             )
 
@@ -198,3 +201,54 @@ class KMSConnector(SecondaryAPIConnector):
         if value is None:
             return False
         return self.min_reasonable_price <= value <= self.max_reasonable_price
+
+    def _extract_model_details(self, item: dict[str, Any]) -> tuple[str | None, str | None]:
+        """
+        Searchspring often exposes normalized product metadata directly on the
+        search response, so we avoid a product-page drill-down request unless
+        absolutely necessary for performance.
+        """
+
+        def _pick(*candidates: Any) -> str | None:
+            for candidate in candidates:
+                value = self.normalize_ws(candidate)
+                if value:
+                    return value
+            return None
+
+        attrs = item.get("attributes")
+        if not isinstance(attrs, dict):
+            attrs = {}
+
+        mappings = item.get("mappings")
+        if not isinstance(mappings, dict):
+            mappings = {}
+
+        mapping_core = mappings.get("core")
+        if not isinstance(mapping_core, dict):
+            mapping_core = {}
+
+        # Model / part-number style values can appear under many retailer fields.
+        model = _pick(
+            item.get("model"),
+            item.get("model_number"),
+            item.get("modelNumber"),
+            item.get("partNumber"),
+            item.get("mpn"),
+            attrs.get("model"),
+            attrs.get("model_number"),
+            attrs.get("part_number"),
+            mapping_core.get("model"),
+            mapping_core.get("model_number"),
+        )
+
+        manufacturer_model = _pick(
+            item.get("manufacturer_model"),
+            item.get("manufacturerModel"),
+            item.get("manufacturer_part_number"),
+            attrs.get("manufacturer_model"),
+            attrs.get("manufacturer_part_number"),
+            mapping_core.get("manufacturer_model"),
+        )
+
+        return model, manufacturer_model

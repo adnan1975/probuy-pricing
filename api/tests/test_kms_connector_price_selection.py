@@ -51,6 +51,27 @@ class KMSConnectorPriceSelectionTests(unittest.TestCase):
         self.assertEqual(result.price_value, 79.0)
         self.assertEqual(result.price_text, "79.0")
 
+    def test_extracts_model_and_manufacturer_model_from_search_payload(self):
+        payload = {
+            "results": [
+                {
+                    "name": "DEWALT FLEXVOLT Grinder",
+                    "url": "/products/dcg418b",
+                    "brand": "DEWALT",
+                    "sale_price": 299.0,
+                    "model_number": "DCG418B",
+                    "attributes": {
+                        "manufacturer_model": "DCG418B-CA",
+                    },
+                }
+            ]
+        }
+
+        result = self.connector.extract_results("dcg418b", payload)[0]
+
+        self.assertEqual(result.model, "DCG418B")
+        self.assertEqual(result.manufacturer_model, "DCG418B-CA")
+
 
 if __name__ == "__main__":
     unittest.main()
