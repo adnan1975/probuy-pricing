@@ -15,5 +15,5 @@ export function buildStep1QueryParams({ product, page, pageSize }) {
  * @returns {string}
  */
 export function buildDetailRequestBody(body) {
-  return JSON.stringify({ query: body.query });
+  return JSON.stringify(body);
 }

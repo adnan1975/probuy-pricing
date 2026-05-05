@@ -40,12 +40,13 @@ export async function fetchDetailResults({
   endpoint,
   query,
   comparisonTarget = null,
-  preselectBest = false
+  preselectBest = false,
+  requestPayload = null
 }) {
   const response = await fetch(`${apiUrl}/search/${endpoint}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: buildDetailRequestBody({ query })
+    body: buildDetailRequestBody(requestPayload || { query })
   });
 
   const payload = response.ok ? await response.json() : null;

@@ -155,7 +155,17 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
             endpoint: connector.endpoint,
             query: candidate,
             comparisonTarget: rowItem,
-            preselectBest: true
+            preselectBest: true,
+            requestPayload: connector.endpoint === "kms_tools" ? {
+              query: candidate,
+              source_product_id: rowItem?.source_product_id,
+              source_code: rowItem?.source_code,
+              title: rowItem?.title,
+              brand: rowItem?.brand,
+              manufacturer: rowItem?.manufacturer,
+              model_number: rowItem?.model_number || rowItem?.manufacturer_model || rowItem?.sku,
+              category: rowItem?.category
+            } : { query: candidate }
           });
 
           if (Array.isArray(comparedResults) && comparedResults.length > 0) {
