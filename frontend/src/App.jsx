@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import ConnectorDetailsPage from "./pages/ConnectorDetailsPage";
 import "./App.css";
 import { API_URL, SOURCE_MATCH_THRESHOLD_POLICY } from "./search/constants";
@@ -18,32 +19,19 @@ const pageRoutes = {
   Settings: "/settings"
 };
 
-function parseAppRoute(locationHref) {
-  const currentLocation = new URL(locationHref);
-  const pathname = currentLocation.pathname;
+function ConnectorDetailsRoute() {
+  const { source = "kms_tools" } = useParams();
+  const [searchParams] = useSearchParams();
+  const productId = searchParams.get("productId") || searchParams.get("product_id") || "";
 
-  if (pathname.startsWith("/connector-details/")) {
-    const connectorDetailsSource = pathname.replace("/connector-details/", "").split("/")[0] || "kms_tools";
-    const connectorDetailsParams = new URLSearchParams(currentLocation.search);
-    const connectorDetailsProductId = connectorDetailsParams.get("productId") || connectorDetailsParams.get("product_id") || "";
-    return {
-      type: "connector-details",
-      source: connectorDetailsSource,
-      productId: connectorDetailsProductId
-    };
-  }
-
-  const activePage = Object.entries(pageRoutes).find(([, routePath]) => routePath === pathname)?.[0] || "Pricing";
-  return {
-    type: "admin-page",
-    activePage
-  };
+  return <ConnectorDetailsPage source={source} productId={productId} />;
 }
 
 function App() {
-  const [locationHref, setLocationHref] = useState(() => window.location.href);
-  const route = useMemo(() => parseAppRoute(locationHref), [locationHref]);
-  const activePage = route.type === "admin-page" ? route.activePage : "Pricing";
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activePage = Object.entries(pageRoutes).find(([, routePath]) => routePath === location.pathname)?.[0] || "Pricing";
+  const isAdminRoute = location.pathname === "/" || Object.values(pageRoutes).includes(location.pathname);
   const { query, setQuery, trimmedQuery, debouncedTrimmedQuery, canSearch } = useSearchInput();
   const {
     page,
@@ -111,12 +99,6 @@ function App() {
     trimmedQuery
   });
 
-
-  useEffect(() => {
-    const handleLocationChange = () => setLocationHref(window.location.href);
-    window.addEventListener("popstate", handleLocationChange);
-    return () => window.removeEventListener("popstate", handleLocationChange);
-  }, []);
 
   useEffect(() => {
     setIsTyping(trimmedQuery !== debouncedTrimmedQuery);
@@ -187,11 +169,11 @@ function App() {
       }
     }
 
-    if (route.type === "admin-page" && activePage === "Pricing") {
+    if (isAdminRoute && activePage === "Pricing") {
       loadResults();
     }
     return () => controller.abort();
-  }, [activePage, canSearch, debouncedTrimmedQuery, filters, page, pageSize, route.type, saveSuccessfulSearch, setDetailsState]);
+  }, [activePage, canSearch, debouncedTrimmedQuery, filters, isAdminRoute, page, pageSize, saveSuccessfulSearch, setDetailsState]);
 
   const visibleResults = useMemo(() => {
     const resultsCopy = [...results];
@@ -600,20 +582,25 @@ function App() {
 
   function navigateToPage(pageName) {
     const nextPath = pageRoutes[pageName] || pageRoutes.Pricing;
-    if (window.location.pathname === nextPath) {
-      return;
+    if (location.pathname !== nextPath) {
+      navigate(nextPath);
     }
-    window.history.pushState({}, "", nextPath);
-    setLocationHref(window.location.href);
   }
 
-  if (route.type === "connector-details") {
+  if (location.pathname === "/") {
+    return <Navigate to={pageRoutes.Pricing} replace />;
+  }
+
+  if (location.pathname.startsWith("/connector-details/")) {
     return (
-      <ConnectorDetailsPage
-        source={route.source}
-        productId={route.productId}
-      />
+      <Routes>
+        <Route path="/connector-details/:source" element={<ConnectorDetailsRoute />} />
+      </Routes>
     );
+  }
+
+  if (!isAdminRoute) {
+    return <Navigate to={pageRoutes.Pricing} replace />;
   }
 
   return (
