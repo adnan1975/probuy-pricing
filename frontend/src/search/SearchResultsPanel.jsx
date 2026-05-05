@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState } from "react";
-import { detailConnectorConfigs, PAGE_SIZE_OPTIONS } from "./constants";
+import { activeDetailConnectorConfigs, PAGE_SIZE_OPTIONS } from "./constants";
 import loaderImage from "../assets/results-loader.svg";
 import ProductCompareCard from "./ProductCompareCard";
 
@@ -435,7 +435,7 @@ export function SearchResultsPanel({
                     <div className="details-section">
                     <div className="details-title">Connector prices for {item.sku || item.title}</div>
                     <div className="details-grid">
-                      {detailConnectorConfigs.map((connector) => {
+                      {activeDetailConnectorConfigs.map((connector) => {
                         const offer = rowDetails.offersBySource?.[connector.source] || null;
                         const isLoading = Boolean(rowDetails.loadingBySource?.[connector.source]);
                         const error = rowDetails.errorsBySource?.[connector.source];
@@ -486,7 +486,7 @@ export function SearchResultsPanel({
                             <button
                               className="details-btn details-btn-secondary"
                               type="button"
-                              onClick={() => onOpenConnectorDetails?.(connectorRouteSlugByName[connector.source])}
+                              onClick={() => onOpenConnectorDetails?.(idx, connector.source, connectorRouteSlugByName[connector.source])}
                             >
                               Details
                             </button>

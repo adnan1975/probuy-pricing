@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { detailConnectorConfigs } from "./constants";
+import { activeDetailConnectorConfigs } from "./constants";
 import { evaluateOfferPolicy } from "./matchPolicy";
 import { fetchDetailResults } from "./searchApi";
 
@@ -23,7 +23,7 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
   const relatedOffersByRow = useMemo(
     () =>
       Object.entries(detailsState).reduce((acc, [rowIndex, rowState]) => {
-        const offers = detailConnectorConfigs
+        const offers = activeDetailConnectorConfigs
           .map((config) => rowState?.offersBySource?.[config.source])
           .filter(Boolean);
         acc[rowIndex] = offers;
@@ -82,8 +82,8 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
 
     const sourceSet = Array.isArray(sources) && sources.length > 0 ? new Set(sources) : null;
     const connectorsToLoad = sourceSet
-      ? detailConnectorConfigs.filter((connector) => sourceSet.has(connector.source))
-      : detailConnectorConfigs;
+      ? activeDetailConnectorConfigs.filter((connector) => sourceSet.has(connector.source))
+      : activeDetailConnectorConfigs;
 
     if (connectorsToLoad.length === 0) {
       return;
@@ -316,7 +316,7 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
   }
 
   function retryDetailsForConnector(index, source) {
-    loadDetailsForRow(index, { force: true, sources: [source] });
+    return loadDetailsForRow(index, { force: true, sources: [source] });
   }
 
   return {

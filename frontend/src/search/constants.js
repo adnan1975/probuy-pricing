@@ -44,6 +44,16 @@ export const detailConnectorConfigs = [
   { source: "Amazon.ca", endpoint: "amazon_ca" }
 ];
 
+/** @type {string[]} */
+export const ENABLED_DETAIL_CONNECTOR_SOURCES = [
+  "KMS Tools"
+];
+
+/** @type {{source: string, endpoint: string}[]} */
+export const activeDetailConnectorConfigs = detailConnectorConfigs.filter((connector) =>
+  ENABLED_DETAIL_CONNECTOR_SOURCES.includes(connector.source)
+);
+
 /** @type {number[]} */
 export const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
