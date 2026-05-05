@@ -30,8 +30,8 @@ function App() {
   } = useFilterState();
 
   const [results, setResults] = useState([]);
-  const [requestId, setRequestId] = useState("");
-  const [searchTimestamp, setSearchTimestamp] = useState("");
+  const [, setRequestId] = useState("");
+  const [, setSearchTimestamp] = useState("");
   const [locationHref, setLocationHref] = useState(() => window.location.href);
   const [analysis, setAnalysis] = useState(null);
   const [perSourceErrors, setPerSourceErrors] = useState({});
@@ -81,6 +81,13 @@ function App() {
     visibleResults: results,
     trimmedQuery
   });
+
+  const currentLocation = new URL(locationHref);
+  const pathname = currentLocation.pathname;
+  const isConnectorDetailsPage = pathname.startsWith("/connector-details/");
+  const connectorDetailsSource = isConnectorDetailsPage ? pathname.replace("/connector-details/", "").split("/")[0] : "";
+  const connectorDetailsParams = new URLSearchParams(currentLocation.search);
+  const connectorDetailsProductId = connectorDetailsParams.get("productId") || connectorDetailsParams.get("product_id") || "";
 
 
   useEffect(() => {
@@ -158,11 +165,11 @@ function App() {
       }
     }
 
-    if (activePage === "Pricing") {
+    if (activePage === "Pricing" && !isConnectorDetailsPage) {
       loadResults();
     }
     return () => controller.abort();
-  }, [activePage, canSearch, debouncedTrimmedQuery, filters, page, pageSize, saveSuccessfulSearch, setDetailsState]);
+  }, [activePage, canSearch, debouncedTrimmedQuery, filters, isConnectorDetailsPage, page, pageSize, saveSuccessfulSearch, setDetailsState]);
 
   const visibleResults = useMemo(() => {
     const resultsCopy = [...results];
@@ -209,41 +216,18 @@ function App() {
 
 
 
-  async function openConnectorDetails(rowIndex, sourceName, sourceSlug) {
-    const debugWindow = window.open("about:blank", "_blank", "noopener,noreferrer");
-
-    await retryDetailsForConnector(rowIndex, sourceName);
-
+  function openConnectorDetails(rowIndex, sourceName, sourceSlug, productId) {
+    const targetProduct = visibleResults[rowIndex] || {};
+    const resolvedProductId = productId || targetProduct.source_product_id || targetProduct.sourceProductId || targetProduct.id || "";
     const params = new URLSearchParams();
-    if (trimmedQuery) params.set("query", trimmedQuery);
-    if (requestId) params.set("requestId", requestId);
-    params.set("timestamp", new Date().toISOString());
+    if (resolvedProductId) params.set("productId", resolvedProductId);
     const queryString = params.toString();
-    const nextPath = `/connector-details/${sourceSlug}${queryString ? `?${queryString}` : ""}`;
+    const nextPath = `/connector-details/${sourceSlug || sourceName || "kms_tools"}${queryString ? `?${queryString}` : ""}`;
     const nextUrl = new URL(nextPath, window.location.origin).toString();
-
-    if (debugWindow) {
-      debugWindow.location.replace(nextUrl);
-      return;
-    }
 
     window.open(nextUrl, "_blank", "noopener,noreferrer");
   }
 
-  const currentLocation = new URL(locationHref);
-  const pathname = currentLocation.pathname;
-  if (pathname.startsWith("/connector-details/")) {
-    const source = pathname.replace("/connector-details/", "").split("/")[0];
-    const urlParams = new URLSearchParams(currentLocation.search);
-    return (
-      <ConnectorDetailsPage
-        source={source}
-        query={urlParams.get("query") || ""}
-        requestId={urlParams.get("requestId") || ""}
-        timestamp={urlParams.get("timestamp") || ""}
-      />
-    );
-  }
   function formatSuggestedPrice(item, rowIndex) {
     const rowDetails = detailsState[String(rowIndex)] || {};
     const offersBySource = rowDetails.offersBySource || {};
@@ -590,6 +574,15 @@ function App() {
       return "N/A";
     }
     return `$${value.toFixed(2)}`;
+  }
+
+  if (isConnectorDetailsPage) {
+    return (
+      <ConnectorDetailsPage
+        source={connectorDetailsSource}
+        productId={connectorDetailsProductId}
+      />
+    );
   }
 
   return (
