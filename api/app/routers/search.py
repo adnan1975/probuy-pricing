@@ -37,26 +37,41 @@ def _token_overlap(left: str | None, right: str | None) -> float:
     return common / max(len(l_tokens), len(r_tokens))
 
 
-def _kms_match_percentage(payload: ConnectorSearchRequest, candidate) -> float:
+def _kms_match_breakdown(payload: ConnectorSearchRequest, candidate) -> dict[str, object]:
     # source_product_id and source_code are intentionally excluded from matching as requested.
     weighted_attributes = [
-        (payload.title, getattr(candidate, "title", None), 0.35),
-        (payload.brand or payload.manufacturer, getattr(candidate, "brand", None), 0.25),
-        (payload.model_number, getattr(candidate, "sku", None), 0.25),
-        (payload.category, getattr(candidate, "why", None), 0.15),
+        ("title", payload.title, getattr(candidate, "title", None), 0.35),
+        ("brand", payload.brand or payload.manufacturer, getattr(candidate, "brand", None), 0.25),
+        ("model_number", payload.model_number, getattr(candidate, "sku", None), 0.25),
+        ("category", payload.category, getattr(candidate, "why", None), 0.15),
     ]
 
     score = 0.0
     total_weight = 0.0
-    for expected, actual, weight in weighted_attributes:
+    matched_attributes: list[str] = []
+    unmatched_attributes: list[str] = []
+
+    for attribute, expected, actual, weight in weighted_attributes:
         if not _norm(expected):
             continue
+
+        overlap = _token_overlap(expected, actual)
         total_weight += weight
-        score += _token_overlap(expected, actual) * weight
+        score += overlap * weight
+
+        if overlap > 0:
+            matched_attributes.append(attribute)
+        else:
+            unmatched_attributes.append(attribute)
 
     if total_weight == 0:
-        return 0.0
-    return round((score / total_weight) * 100, 2)
+        return {"match_percentage": 0.0, "matched_attributes": [], "unmatched_attributes": []}
+
+    return {
+        "match_percentage": round((score / total_weight) * 100, 2),
+        "matched_attributes": matched_attributes,
+        "unmatched_attributes": unmatched_attributes,
+    }
 
 
 def _kms_search_queries(payload: ConnectorSearchRequest) -> list[str]:
@@ -124,7 +139,8 @@ async def search_by_connector(
             for kms_query in kms_queries:
                 connector_results = await search_service.search_connector_with_scn_variants(connector, kms_query)
                 for item in connector_results:
-                    match_percentage = _kms_match_percentage(payload, item)
+                    match_breakdown = _kms_match_breakdown(payload, item)
+                    match_percentage = float(match_breakdown["match_percentage"])
                     confidence = "High" if match_percentage >= 95 else ("Medium" if match_percentage >= 80 else "Low")
                     ranked_matches.append(
                         item.model_copy(
@@ -132,6 +148,8 @@ async def search_by_connector(
                                 "score": max(item.score, int(match_percentage)),
                                 "confidence": confidence,
                                 "why": f"KMS attribute match {match_percentage:.2f}% using payload fields.",
+                                "matched_attributes": match_breakdown["matched_attributes"],
+                                "unmatched_attributes": match_breakdown["unmatched_attributes"],
                             }
                         )
                     )
