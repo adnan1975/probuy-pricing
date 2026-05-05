@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import uuid
 from collections import Counter
 from dataclasses import dataclass, field
@@ -59,6 +60,16 @@ class KMSConnector(SecondaryAPIConnector):
     base_domain = "https://www.kmstools.com"
     min_reasonable_price = 0.01
     max_reasonable_price = 100000.0
+
+
+    manufacturer_prefix_map: dict[str, str] = {
+        "DEW": "DEWALT",
+        "MIL": "Milwaukee",
+        "MAK": "Makita",
+        "BOS": "Bosch",
+        "RID": "RIDGID",
+        "3M": "3M",
+    }
 
     price_field_precedence: tuple[str, ...] = (
         "final_price",
@@ -265,6 +276,21 @@ class KMSConnector(SecondaryAPIConnector):
         image_url = self._extract_image_url(item)
         availability = self._extract_availability(item)
         model, manufacturer_model = self._extract_model_details(item)
+        drilldown_used = False
+
+        if not model and sku:
+            derived_brand, derived_model = self._derive_model_from_sku(sku)
+            manufacturer_model = manufacturer_model or derived_model
+            model = model or derived_model
+            if not brand and derived_brand:
+                brand = derived_brand
+
+        if self._should_drilldown(model=model, manufacturer_model=manufacturer_model):
+            drilldown_model, drilldown_manufacturer_model, drilldown_sku = self._drilldown_product_details(product_url)
+            drilldown_used = True
+            model = model or drilldown_model
+            manufacturer_model = manufacturer_model or drilldown_manufacturer_model
+            sku = sku or drilldown_sku
 
         if not image_url:
             stats.missing_image += 1
@@ -298,13 +324,14 @@ class KMSConnector(SecondaryAPIConnector):
             availability=availability or "See product page",
             product_url=product_url,
             image_url=image_url,
-            confidence="High" if price_value is not None else "Medium",
+            confidence=self._resolve_confidence(price_value=price_value, model=model, manufacturer_model=manufacturer_model),
             score=88 if price_value is not None else 72,
             why=(
                 "Parsed from KMS Searchspring search API with "
                 f"price_field={raw_field or 'none'}, "
                 f"model={'yes' if model else 'no'}, "
-                f"manufacturer_model={'yes' if manufacturer_model else 'no'}."
+                f"manufacturer_model={'yes' if manufacturer_model else 'no'}, "
+                f"drilldown={'yes' if drilldown_used else 'no'}."
             ),
         )
 
@@ -415,3 +442,67 @@ class KMSConnector(SecondaryAPIConnector):
             stats.sample_missing_price_titles,
             stats.sample_skipped_items,
         )
+
+
+    def _derive_model_from_sku(self, sku: str) -> tuple[str | None, str | None]:
+        normalized = self.normalize_ws(sku)
+        if not normalized:
+            return None, None
+
+        token = normalized.upper()
+        if "-" not in token:
+            return None, None
+
+        prefix, suffix = token.split("-", 1)
+        brand = self.manufacturer_prefix_map.get(prefix)
+        model = self.normalize_ws(suffix)
+        return brand, model
+
+    def _should_drilldown(self, *, model: str | None, manufacturer_model: str | None) -> bool:
+        return not model or not manufacturer_model
+
+    def _drilldown_product_details(self, product_url: str) -> tuple[str | None, str | None, str | None]:
+        try:
+            html = get_shared_http_client().get_text(
+                product_url,
+                headers={
+                    "User-Agent": self.user_agent,
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Referer": self.base_domain + "/",
+                },
+                timeout=self.timeout_seconds,
+            )
+        except Exception:
+            self.logger.exception("KMS drilldown failed url=%s", product_url)
+            return None, None, None
+
+        return (
+            self._extract_labeled_value(html, ("Model Number", "Model #")),
+            self._extract_labeled_value(html, ("Manufacturer SKU", "Manufacturer Part Number", "MFG SKU")),
+            self._extract_labeled_value(html, ("SKU",)),
+        )
+
+    def _extract_labeled_value(self, html: str, labels: tuple[str, ...]) -> str | None:
+        compact = re.sub(r"\s+", " ", html)
+        for label in labels:
+            pattern = re.compile(rf"{re.escape(label)}\s*</[^>]+>\s*<[^>]+>([^<]{{1,80}})</", re.IGNORECASE)
+            match = pattern.search(compact)
+            if match:
+                value = self.normalize_ws(match.group(1))
+                if value:
+                    return value
+
+            text_pattern = re.compile(rf"{re.escape(label)}\s*[:#]?\s*([A-Za-z0-9\-]{{3,40}})", re.IGNORECASE)
+            text_match = text_pattern.search(compact)
+            if text_match:
+                value = self.normalize_ws(text_match.group(1))
+                if value and value.lower() not in {"sku", "model"}:
+                    return value
+        return None
+
+    def _resolve_confidence(self, *, price_value: float | None, model: str | None, manufacturer_model: str | None) -> str:
+        if price_value is not None and model and manufacturer_model:
+            return "High"
+        if price_value is not None:
+            return "Medium"
+        return "Low"
