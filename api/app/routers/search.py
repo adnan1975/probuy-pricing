@@ -14,7 +14,7 @@ from app.models.normalized_result import (
     SearchResponse,
 )
 from app.services.automated_pricing_service import AutomatedPricingService
-from app.services.kms_matching_service import kms_match_percentage, kms_search_queries
+from app.services.kms_matching_service import kms_match_details, kms_search_queries
 from app.services.scn_catalog_service import SCNCatalogService
 from app.services.search_service import SearchService
 
@@ -71,16 +71,19 @@ async def search_by_connector(
             for kms_query in kms_queries:
                 connector_results = await search_service.search_connector_with_scn_variants(connector, kms_query)
                 for item in connector_results:
-                    match_percentage = kms_match_percentage(payload, item)
+                    match_percentage, match_breakdown = kms_match_details(payload, item)
                     confidence = "High" if match_percentage >= 95 else ("Medium" if match_percentage >= 80 else "Low")
                     ranked_matches.append(
                         item.model_copy(
                             update={
                                 "score": max(item.score, int(match_percentage)),
                                 "confidence": confidence,
-                                "why": f"KMS attribute match {match_percentage:.2f}% using payload fields.",
-                                "matched_attributes": match_breakdown["matched_attributes"],
-                                "unmatched_attributes": match_breakdown["unmatched_attributes"],
+                                "why": (
+                                    f"KMS attribute match {match_percentage:.2f}% using payload fields "
+                                    f"(title {match_breakdown['title']:.2f}%, "
+                                    f"brand {match_breakdown['brand']:.2f}%, "
+                                    f"model {match_breakdown['model']:.2f}%)."
+                                ),
                             }
                         )
                     )

@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 
 from app.models.normalized_result import ConnectorSearchRequest
-from app.services.kms_matching_service import kms_match_percentage, kms_search_queries
+from app.services.kms_matching_service import kms_match_details, kms_search_queries
 
 
 class KMSRouterMatchingTests(unittest.TestCase):
@@ -22,8 +22,9 @@ class KMSRouterMatchingTests(unittest.TestCase):
             manufacturer_model="DCG418B-CA",
         )
 
-        score = kms_match_percentage(payload, candidate)
+        score, breakdown = kms_match_details(payload, candidate)
         self.assertGreaterEqual(score, 85.0)
+        self.assertEqual(breakdown["model"], 100.0)
 
     def test_category_is_not_used_as_kms_query_candidate(self):
         payload = ConnectorSearchRequest(

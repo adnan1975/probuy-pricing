@@ -46,6 +46,23 @@ def kms_match_percentage(payload: ConnectorSearchRequest, candidate) -> float:
     return round((score / total_weight) * 100, 2)
 
 
+def kms_match_details(payload: ConnectorSearchRequest, candidate) -> tuple[float, dict[str, float]]:
+    title_overlap = token_overlap(payload.title, getattr(candidate, "title", None))
+    brand_overlap = token_overlap(payload.brand or payload.manufacturer, getattr(candidate, "brand", None))
+    model_overlap = max(
+        token_overlap(payload.model_number, getattr(candidate, "model", None)),
+        token_overlap(payload.model_number, getattr(candidate, "manufacturer_model", None)),
+        token_overlap(payload.model_number, getattr(candidate, "sku", None)),
+    )
+
+    weighted_score = (title_overlap * 0.35) + (brand_overlap * 0.25) + (model_overlap * 0.40)
+    return round(weighted_score * 100, 2), {
+        "title": round(title_overlap * 100, 2),
+        "brand": round(brand_overlap * 100, 2),
+        "model": round(model_overlap * 100, 2),
+    }
+
+
 def kms_search_queries(payload: ConnectorSearchRequest) -> list[str]:
     candidates = [
         payload.title,
