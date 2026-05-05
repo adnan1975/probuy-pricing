@@ -316,7 +316,7 @@ export function useProductDetailExpansion({ apiUrl, visibleResults, trimmedQuery
   }
 
   function retryDetailsForConnector(index, source) {
-    loadDetailsForRow(index, { force: true, sources: [source] });
+    return loadDetailsForRow(index, { force: true, sources: [source] });
   }
 
   return {
