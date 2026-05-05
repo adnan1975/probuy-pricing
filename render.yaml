@@ -18,6 +18,18 @@ services:
   - type: rewrite
     source: /connector-details/*
     destination: /index.html
+  - type: rewrite
+    source: /dashboard
+    destination: /index.html
+  - type: rewrite
+    source: /pricing
+    destination: /index.html
+  - type: rewrite
+    source: /automated-pricing-test
+    destination: /index.html
+  - type: rewrite
+    source: /settings
+    destination: /index.html
   envVars:
   - key: VITE_API_URL
     value: https://pricesense-api.onrender.com

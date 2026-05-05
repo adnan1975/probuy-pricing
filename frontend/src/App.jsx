@@ -11,9 +11,39 @@ import { useSearchInput } from "./search/useSearchInput";
 import { fetchProductPublicationStatus, publishProductToShopifyDraft } from "./integrations/shopifyApi";
 
 const topMenuItems = ["Dashboard", "Pricing", "Automated Pricing Test", "Settings"];
+const pageRoutes = {
+  Dashboard: "/dashboard",
+  Pricing: "/pricing",
+  "Automated Pricing Test": "/automated-pricing-test",
+  Settings: "/settings"
+};
+
+function parseAppRoute(locationHref) {
+  const currentLocation = new URL(locationHref);
+  const pathname = currentLocation.pathname;
+
+  if (pathname.startsWith("/connector-details/")) {
+    const connectorDetailsSource = pathname.replace("/connector-details/", "").split("/")[0] || "kms_tools";
+    const connectorDetailsParams = new URLSearchParams(currentLocation.search);
+    const connectorDetailsProductId = connectorDetailsParams.get("productId") || connectorDetailsParams.get("product_id") || "";
+    return {
+      type: "connector-details",
+      source: connectorDetailsSource,
+      productId: connectorDetailsProductId
+    };
+  }
+
+  const activePage = Object.entries(pageRoutes).find(([, routePath]) => routePath === pathname)?.[0] || "Pricing";
+  return {
+    type: "admin-page",
+    activePage
+  };
+}
 
 function App() {
-  const [activePage, setActivePage] = useState("Pricing");
+  const [locationHref, setLocationHref] = useState(() => window.location.href);
+  const route = useMemo(() => parseAppRoute(locationHref), [locationHref]);
+  const activePage = route.type === "admin-page" ? route.activePage : "Pricing";
   const { query, setQuery, trimmedQuery, debouncedTrimmedQuery, canSearch } = useSearchInput();
   const {
     page,
@@ -32,7 +62,6 @@ function App() {
   const [results, setResults] = useState([]);
   const [, setRequestId] = useState("");
   const [, setSearchTimestamp] = useState("");
-  const [locationHref, setLocationHref] = useState(() => window.location.href);
   const [analysis, setAnalysis] = useState(null);
   const [perSourceErrors, setPerSourceErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -81,13 +110,6 @@ function App() {
     visibleResults: results,
     trimmedQuery
   });
-
-  const currentLocation = new URL(locationHref);
-  const pathname = currentLocation.pathname;
-  const isConnectorDetailsPage = pathname.startsWith("/connector-details/");
-  const connectorDetailsSource = isConnectorDetailsPage ? pathname.replace("/connector-details/", "").split("/")[0] : "";
-  const connectorDetailsParams = new URLSearchParams(currentLocation.search);
-  const connectorDetailsProductId = connectorDetailsParams.get("productId") || connectorDetailsParams.get("product_id") || "";
 
 
   useEffect(() => {
@@ -165,11 +187,11 @@ function App() {
       }
     }
 
-    if (activePage === "Pricing" && !isConnectorDetailsPage) {
+    if (route.type === "admin-page" && activePage === "Pricing") {
       loadResults();
     }
     return () => controller.abort();
-  }, [activePage, canSearch, debouncedTrimmedQuery, filters, isConnectorDetailsPage, page, pageSize, saveSuccessfulSearch, setDetailsState]);
+  }, [activePage, canSearch, debouncedTrimmedQuery, filters, page, pageSize, route.type, saveSuccessfulSearch, setDetailsState]);
 
   const visibleResults = useMemo(() => {
     const resultsCopy = [...results];
@@ -576,11 +598,20 @@ function App() {
     return `$${value.toFixed(2)}`;
   }
 
-  if (isConnectorDetailsPage) {
+  function navigateToPage(pageName) {
+    const nextPath = pageRoutes[pageName] || pageRoutes.Pricing;
+    if (window.location.pathname === nextPath) {
+      return;
+    }
+    window.history.pushState({}, "", nextPath);
+    setLocationHref(window.location.href);
+  }
+
+  if (route.type === "connector-details") {
     return (
       <ConnectorDetailsPage
-        source={connectorDetailsSource}
-        productId={connectorDetailsProductId}
+        source={route.source}
+        productId={route.productId}
       />
     );
   }
@@ -596,7 +627,7 @@ function App() {
                 key={item}
                 type="button"
                 className={`menu-item ${activePage === item ? "active" : ""}`}
-                onClick={() => setActivePage(item)}
+                onClick={() => navigateToPage(item)}
               >
                 {item}
               </button>
