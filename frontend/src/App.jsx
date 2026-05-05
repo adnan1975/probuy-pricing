@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import ConnectorDetailsPage from "./pages/ConnectorDetailsPage";
 import "./App.css";
 import { API_URL, SOURCE_MATCH_THRESHOLD_POLICY } from "./search/constants";
 import { fetchAutomatedPricingStatus, fetchDashboardCatalogStats, fetchStep1Results, openAutomatedPricingStream, startAutomatedPricing } from "./search/searchApi";
@@ -29,6 +30,9 @@ function App() {
   } = useFilterState();
 
   const [results, setResults] = useState([]);
+  const [requestId, setRequestId] = useState("");
+  const [searchTimestamp, setSearchTimestamp] = useState("");
+  const [locationHref, setLocationHref] = useState(() => window.location.href);
   const [analysis, setAnalysis] = useState(null);
   const [perSourceErrors, setPerSourceErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -78,6 +82,13 @@ function App() {
     trimmedQuery
   });
 
+
+  useEffect(() => {
+    const handleLocationChange = () => setLocationHref(window.location.href);
+    window.addEventListener("popstate", handleLocationChange);
+    return () => window.removeEventListener("popstate", handleLocationChange);
+  }, []);
+
   useEffect(() => {
     setIsTyping(trimmedQuery !== debouncedTrimmedQuery);
   }, [debouncedTrimmedQuery, trimmedQuery]);
@@ -91,6 +102,8 @@ function App() {
         setHasCompletedSearchRequest(false);
         setApiError("");
         setResults([]);
+        setRequestId("");
+        setSearchTimestamp("");
         setDetailsState({});
         setAnalysis(null);
         setPerSourceErrors({});
@@ -114,6 +127,8 @@ function App() {
 
         const scnResults = Array.isArray(step1Data.results) ? step1Data.results : [];
         setResults(scnResults);
+        setRequestId(step1Data.request_id || step1Data.requestId || "");
+        setSearchTimestamp(step1Data.timestamp || new Date().toISOString());
         if (scnResults.length > 0) {
           saveSuccessfulSearch(debouncedTrimmedQuery);
         }
@@ -128,6 +143,8 @@ function App() {
         if (err.name !== "AbortError") {
           setApiError(err.message || "Could not load results");
           setResults([]);
+          setRequestId("");
+          setSearchTimestamp("");
           setDetailsState({});
           setAnalysis(null);
           setPerSourceErrors({});
@@ -190,6 +207,33 @@ function App() {
     };
   }, [facetDistribution]);
 
+
+
+  function openConnectorDetails(sourceSlug) {
+    const params = new URLSearchParams();
+    if (trimmedQuery) params.set("query", trimmedQuery);
+    if (requestId) params.set("requestId", requestId);
+    if (searchTimestamp) params.set("timestamp", searchTimestamp);
+    const queryString = params.toString();
+    const nextUrl = `/connector-details/${sourceSlug}${queryString ? `?${queryString}` : ""}`;
+    window.history.pushState({}, "", nextUrl);
+    setLocationHref(window.location.href);
+  }
+
+  const currentLocation = new URL(locationHref);
+  const pathname = currentLocation.pathname;
+  if (pathname.startsWith("/connector-details/")) {
+    const source = pathname.replace("/connector-details/", "").split("/")[0];
+    const urlParams = new URLSearchParams(currentLocation.search);
+    return (
+      <ConnectorDetailsPage
+        source={source}
+        query={urlParams.get("query") || ""}
+        requestId={urlParams.get("requestId") || ""}
+        timestamp={urlParams.get("timestamp") || ""}
+      />
+    );
+  }
   function formatSuggestedPrice(item, rowIndex) {
     const rowDetails = detailsState[String(rowIndex)] || {};
     const offersBySource = rowDetails.offersBySource || {};
@@ -882,6 +926,7 @@ function App() {
                   publishingRowState={publishingBySourceProductId}
                   onClearFilters={handleClearFiltersRecovery}
                   onUseExampleQuery={handleUseExampleQueryRecovery}
+                  onOpenConnectorDetails={openConnectorDetails}
                 />
 
                 {Object.keys(perSourceErrors).length > 0 && (
