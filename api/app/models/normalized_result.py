@@ -50,6 +50,13 @@ class SearchResponse(BaseModel):
 
 class ConnectorSearchRequest(BaseModel):
     query: str = ""
+    source_product_id: str | None = None
+    source_code: str | None = None
+    title: str | None = None
+    brand: str | None = None
+    manufacturer: str | None = None
+    model_number: str | None = None
+    category: str | None = None
 
 
 class ConnectorSearchResponse(BaseModel):
