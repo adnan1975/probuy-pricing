@@ -209,15 +209,25 @@ function App() {
 
 
 
-  function openConnectorDetails(sourceSlug) {
+  async function openConnectorDetails(rowIndex, sourceName, sourceSlug) {
+    const debugWindow = window.open("about:blank", "_blank", "noopener,noreferrer");
+
+    await retryDetailsForConnector(rowIndex, sourceName);
+
     const params = new URLSearchParams();
     if (trimmedQuery) params.set("query", trimmedQuery);
     if (requestId) params.set("requestId", requestId);
-    if (searchTimestamp) params.set("timestamp", searchTimestamp);
+    params.set("timestamp", new Date().toISOString());
     const queryString = params.toString();
-    const nextUrl = `/connector-details/${sourceSlug}${queryString ? `?${queryString}` : ""}`;
-    window.history.pushState({}, "", nextUrl);
-    setLocationHref(window.location.href);
+    const nextPath = `/connector-details/${sourceSlug}${queryString ? `?${queryString}` : ""}`;
+    const nextUrl = new URL(nextPath, window.location.origin).toString();
+
+    if (debugWindow) {
+      debugWindow.location.replace(nextUrl);
+      return;
+    }
+
+    window.open(nextUrl, "_blank", "noopener,noreferrer");
   }
 
   const currentLocation = new URL(locationHref);

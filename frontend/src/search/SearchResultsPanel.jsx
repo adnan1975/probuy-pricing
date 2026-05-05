@@ -486,7 +486,7 @@ export function SearchResultsPanel({
                             <button
                               className="details-btn details-btn-secondary"
                               type="button"
-                              onClick={() => onOpenConnectorDetails?.(connectorRouteSlugByName[connector.source])}
+                              onClick={() => onOpenConnectorDetails?.(idx, connector.source, connectorRouteSlugByName[connector.source])}
                             >
                               Details
                             </button>
