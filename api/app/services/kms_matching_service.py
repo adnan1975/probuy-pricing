@@ -64,18 +64,28 @@ def kms_match_details(payload: ConnectorSearchRequest, candidate) -> tuple[float
 
 
 def kms_search_queries(payload: ConnectorSearchRequest) -> list[str]:
-    candidates = [
-        payload.title,
-        payload.brand,
-        payload.manufacturer,
-        payload.model_number,
-        payload.query,
-    ]
+    candidates: list[str] = []
+
+    model = (payload.model_number or "").strip()
+    brand = (payload.brand or payload.manufacturer or "").strip()
+    title = (payload.title or "").strip()
+    query = (payload.query or "").strip()
+
+    if model and brand:
+        candidates.append(f"{brand} {model}")
+    if model:
+        candidates.append(model)
+    if title:
+        candidates.append(title)
+    if query:
+        candidates.append(query)
+
     deduped: list[str] = []
     seen = set()
     for value in candidates:
-        normalized = (value or "").strip()
-        if normalized and normalized.lower() not in seen:
+        normalized = " ".join(value.split())
+        key = normalized.lower()
+        if normalized and key not in seen:
             deduped.append(normalized)
-            seen.add(normalized.lower())
+            seen.add(key)
     return deduped

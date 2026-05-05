@@ -40,6 +40,25 @@ class KMSRouterMatchingTests(unittest.TestCase):
         self.assertNotIn("power tools", queries)
         self.assertIn("DCG418B", queries)
 
+    def test_kms_search_queries_prioritize_brand_model_then_model_then_title(self):
+        payload = ConnectorSearchRequest(
+            query="grinder",
+            title="DEWALT FLEXVOLT grinder",
+            brand="DEWALT",
+            manufacturer="DEWALT",
+            model_number="DCG418B",
+            category="power tools",
+        )
+
+        queries = kms_search_queries(payload)
+
+        self.assertEqual(queries[0], "DEWALT DCG418B")
+        self.assertEqual(queries[1], "DCG418B")
+        self.assertIn("DEWALT FLEXVOLT grinder", queries)
+        self.assertIn("grinder", queries)
+        self.assertNotIn("DEWALT", queries)
+        self.assertNotIn("power tools", queries)
+
 
 if __name__ == "__main__":
     unittest.main()
