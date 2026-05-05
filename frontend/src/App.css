@@ -637,6 +637,16 @@ body {
   margin-left: 8px;
 }
 
+
+.details-btn-secondary {
+  margin-left: 0;
+  margin-top: 8px;
+  width: 100%;
+  background: #fff;
+  border: 1px solid #94a3b8;
+  color: #334155;
+}
+
 .details-btn:disabled {
   color: #a1a1aa;
   cursor: not-allowed;

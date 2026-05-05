@@ -3,6 +3,15 @@ import { detailConnectorConfigs, PAGE_SIZE_OPTIONS } from "./constants";
 import loaderImage from "../assets/results-loader.svg";
 import ProductCompareCard from "./ProductCompareCard";
 
+
+const connectorRouteSlugByName = {
+  "White Cap": "whitecap",
+  "KMS Tools": "kms",
+  "Canadian Tire": "canadiantire",
+  "Home Depot": "homedepot"
+};
+
+
 function buildWebpFallbackUrl(imageUrl) {
   if (!imageUrl) return "";
   const [baseWithPath, hashFragment = ""] = imageUrl.split("#");
@@ -131,7 +140,8 @@ export function SearchResultsPanel({
   onPushShopifyDraft,
   publishingRowState = {},
   onClearFilters,
-  onUseExampleQuery
+  onUseExampleQuery,
+  onOpenConnectorDetails
 }) {
   function getPublicationInfo(item) {
     const publications = Array.isArray(item?.product_channel_publications)
@@ -472,6 +482,13 @@ export function SearchResultsPanel({
                               disabled={isLoading}
                             >
                               Retry {connector.source}
+                            </button>
+                            <button
+                              className="details-btn details-btn-secondary"
+                              type="button"
+                              onClick={() => onOpenConnectorDetails?.(connectorRouteSlugByName[connector.source])}
+                            >
+                              Details
                             </button>
                             {offer?.product_url && (
                               <a
