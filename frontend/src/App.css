@@ -1688,3 +1688,17 @@ body {
   background: #fef2f2;
   color: #991b1b;
 }
+
+.debug-json {
+  background: #111827;
+  border-radius: 12px;
+  color: #e5e7eb;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-top: 10px;
+  max-height: 520px;
+  overflow: auto;
+  padding: 16px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

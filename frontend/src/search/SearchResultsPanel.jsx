@@ -6,7 +6,7 @@ import ProductCompareCard from "./ProductCompareCard";
 
 const connectorRouteSlugByName = {
   "White Cap": "whitecap",
-  "KMS Tools": "kms",
+  "KMS Tools": "kms_tools",
   "Canadian Tire": "canadiantire",
   "Home Depot": "homedepot"
 };
@@ -486,7 +486,7 @@ export function SearchResultsPanel({
                             <button
                               className="details-btn details-btn-secondary"
                               type="button"
-                              onClick={() => onOpenConnectorDetails?.(idx, connector.source, connectorRouteSlugByName[connector.source])}
+                              onClick={() => onOpenConnectorDetails?.(idx, connector.source, connectorRouteSlugByName[connector.source], sourceProductId)}
                             >
                               Details
                             </button>
