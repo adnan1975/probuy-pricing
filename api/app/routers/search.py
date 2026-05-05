@@ -24,6 +24,75 @@ automated_pricing_service = AutomatedPricingService()
 logger = logging.getLogger(__name__)
 
 
+def _norm(value: str | None) -> str:
+    return " ".join((value or "").strip().lower().split())
+
+
+def _token_overlap(left: str | None, right: str | None) -> float:
+    l_tokens = set(_norm(left).split())
+    r_tokens = set(_norm(right).split())
+    if not l_tokens or not r_tokens:
+        return 0.0
+    common = len(l_tokens & r_tokens)
+    return common / max(len(l_tokens), len(r_tokens))
+
+
+def _kms_match_breakdown(payload: ConnectorSearchRequest, candidate) -> dict[str, object]:
+    # source_product_id and source_code are intentionally excluded from matching as requested.
+    weighted_attributes = [
+        ("title", payload.title, getattr(candidate, "title", None), 0.35),
+        ("brand", payload.brand or payload.manufacturer, getattr(candidate, "brand", None), 0.25),
+        ("model_number", payload.model_number, getattr(candidate, "sku", None), 0.25),
+        ("category", payload.category, getattr(candidate, "why", None), 0.15),
+    ]
+
+    score = 0.0
+    total_weight = 0.0
+    matched_attributes: list[str] = []
+    unmatched_attributes: list[str] = []
+
+    for attribute, expected, actual, weight in weighted_attributes:
+        if not _norm(expected):
+            continue
+
+        overlap = _token_overlap(expected, actual)
+        total_weight += weight
+        score += overlap * weight
+
+        if overlap > 0:
+            matched_attributes.append(attribute)
+        else:
+            unmatched_attributes.append(attribute)
+
+    if total_weight == 0:
+        return {"match_percentage": 0.0, "matched_attributes": [], "unmatched_attributes": []}
+
+    return {
+        "match_percentage": round((score / total_weight) * 100, 2),
+        "matched_attributes": matched_attributes,
+        "unmatched_attributes": unmatched_attributes,
+    }
+
+
+def _kms_search_queries(payload: ConnectorSearchRequest) -> list[str]:
+    candidates = [
+        payload.title,
+        payload.brand,
+        payload.manufacturer,
+        payload.model_number,
+        payload.category,
+        payload.query,
+    ]
+    deduped: list[str] = []
+    seen = set()
+    for value in candidates:
+        normalized = (value or "").strip()
+        if normalized and normalized.lower() not in seen:
+            deduped.append(normalized)
+            seen.add(normalized.lower())
+    return deduped
+
+
 @router.get("/search", response_model=SearchResponse)
 async def search(
     product: str = Query(default=""),
@@ -64,7 +133,42 @@ async def search_by_connector(
         raise HTTPException(status_code=404, detail=f"Unknown connector: {connector_name}")
 
     try:
-        results = await search_service.search_connector_with_scn_variants(connector, query)
+        if connector.source == "kms_tools":
+            kms_queries = _kms_search_queries(payload)
+            ranked_matches = []
+            for kms_query in kms_queries:
+                connector_results = await search_service.search_connector_with_scn_variants(connector, kms_query)
+                for item in connector_results:
+                    match_breakdown = _kms_match_breakdown(payload, item)
+                    match_percentage = float(match_breakdown["match_percentage"])
+                    confidence = "High" if match_percentage >= 95 else ("Medium" if match_percentage >= 80 else "Low")
+                    ranked_matches.append(
+                        item.model_copy(
+                            update={
+                                "score": max(item.score, int(match_percentage)),
+                                "confidence": confidence,
+                                "why": f"KMS attribute match {match_percentage:.2f}% using payload fields.",
+                                "matched_attributes": match_breakdown["matched_attributes"],
+                                "unmatched_attributes": match_breakdown["unmatched_attributes"],
+                            }
+                        )
+                    )
+
+                if any((result.score or 0) >= 95 for result in ranked_matches):
+                    break
+
+            deduped = {}
+            for match in ranked_matches:
+                key = f"{(match.product_url or '').strip()}::{(match.title or '').strip().lower()}"
+                if not key.strip(':'):
+                    key = f"{(match.sku or '').strip().lower()}::{(match.title or '').strip().lower()}"
+                existing = deduped.get(key)
+                if existing is None or (match.score or 0) > (existing.score or 0):
+                    deduped[key] = match
+
+            results = sorted(deduped.values(), key=lambda item: (item.score, item.price_value is not None), reverse=True)
+        else:
+            results = await search_service.search_connector_with_scn_variants(connector, query)
     except Exception as exc:
         logger.error(
             "Connector search failed",

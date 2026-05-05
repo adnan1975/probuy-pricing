@@ -22,6 +22,8 @@ class NormalizedResult(BaseModel):
     confidence: str = "Medium"
     score: int = 0
     why: str = "Base connector match"
+    matched_attributes: list[str] = Field(default_factory=list)
+    unmatched_attributes: list[str] = Field(default_factory=list)
 
 
 class SearchAnalysis(BaseModel):
@@ -50,6 +52,13 @@ class SearchResponse(BaseModel):
 
 class ConnectorSearchRequest(BaseModel):
     query: str = ""
+    source_product_id: str | None = None
+    source_code: str | None = None
+    title: str | None = None
+    brand: str | None = None
+    manufacturer: str | None = None
+    model_number: str | None = None
+    category: str | None = None
 
 
 class ConnectorSearchResponse(BaseModel):
