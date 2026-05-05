@@ -22,6 +22,8 @@ class NormalizedResult(BaseModel):
     confidence: str = "Medium"
     score: int = 0
     why: str = "Base connector match"
+    matched_attributes: list[str] = Field(default_factory=list)
+    unmatched_attributes: list[str] = Field(default_factory=list)
 
 
 class SearchAnalysis(BaseModel):
