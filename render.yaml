@@ -12,11 +12,23 @@ services:
   name: pricesense-frontend
   env: static
   rootDir: frontend
-  buildCommand: npm ci && npm run build
+  buildCommand: npm install && npm run build
   staticPublishPath: dist
   routes:
   - type: rewrite
     source: /connector-details/*
+    destination: /index.html
+  - type: rewrite
+    source: /dashboard
+    destination: /index.html
+  - type: rewrite
+    source: /pricing
+    destination: /index.html
+  - type: rewrite
+    source: /automated-pricing-test
+    destination: /index.html
+  - type: rewrite
+    source: /settings
     destination: /index.html
   envVars:
   - key: VITE_API_URL

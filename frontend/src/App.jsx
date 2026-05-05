@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import ConnectorDetailsPage from "./pages/ConnectorDetailsPage";
 import "./App.css";
 import { API_URL, SOURCE_MATCH_THRESHOLD_POLICY } from "./search/constants";
@@ -11,9 +12,26 @@ import { useSearchInput } from "./search/useSearchInput";
 import { fetchProductPublicationStatus, publishProductToShopifyDraft } from "./integrations/shopifyApi";
 
 const topMenuItems = ["Dashboard", "Pricing", "Automated Pricing Test", "Settings"];
+const pageRoutes = {
+  Dashboard: "/dashboard",
+  Pricing: "/pricing",
+  "Automated Pricing Test": "/automated-pricing-test",
+  Settings: "/settings"
+};
+
+function ConnectorDetailsRoute() {
+  const { source = "kms_tools" } = useParams();
+  const [searchParams] = useSearchParams();
+  const productId = searchParams.get("productId") || searchParams.get("product_id") || "";
+
+  return <ConnectorDetailsPage source={source} productId={productId} />;
+}
 
 function App() {
-  const [activePage, setActivePage] = useState("Pricing");
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activePage = Object.entries(pageRoutes).find(([, routePath]) => routePath === location.pathname)?.[0] || "Pricing";
+  const isAdminRoute = location.pathname === "/" || Object.values(pageRoutes).includes(location.pathname);
   const { query, setQuery, trimmedQuery, debouncedTrimmedQuery, canSearch } = useSearchInput();
   const {
     page,
@@ -32,7 +50,6 @@ function App() {
   const [results, setResults] = useState([]);
   const [, setRequestId] = useState("");
   const [, setSearchTimestamp] = useState("");
-  const [locationHref, setLocationHref] = useState(() => window.location.href);
   const [analysis, setAnalysis] = useState(null);
   const [perSourceErrors, setPerSourceErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -82,19 +99,6 @@ function App() {
     trimmedQuery
   });
 
-  const currentLocation = new URL(locationHref);
-  const pathname = currentLocation.pathname;
-  const isConnectorDetailsPage = pathname.startsWith("/connector-details/");
-  const connectorDetailsSource = isConnectorDetailsPage ? pathname.replace("/connector-details/", "").split("/")[0] : "";
-  const connectorDetailsParams = new URLSearchParams(currentLocation.search);
-  const connectorDetailsProductId = connectorDetailsParams.get("productId") || connectorDetailsParams.get("product_id") || "";
-
-
-  useEffect(() => {
-    const handleLocationChange = () => setLocationHref(window.location.href);
-    window.addEventListener("popstate", handleLocationChange);
-    return () => window.removeEventListener("popstate", handleLocationChange);
-  }, []);
 
   useEffect(() => {
     setIsTyping(trimmedQuery !== debouncedTrimmedQuery);
@@ -165,11 +169,11 @@ function App() {
       }
     }
 
-    if (activePage === "Pricing" && !isConnectorDetailsPage) {
+    if (isAdminRoute && activePage === "Pricing") {
       loadResults();
     }
     return () => controller.abort();
-  }, [activePage, canSearch, debouncedTrimmedQuery, filters, isConnectorDetailsPage, page, pageSize, saveSuccessfulSearch, setDetailsState]);
+  }, [activePage, canSearch, debouncedTrimmedQuery, filters, isAdminRoute, page, pageSize, saveSuccessfulSearch, setDetailsState]);
 
   const visibleResults = useMemo(() => {
     const resultsCopy = [...results];
@@ -576,13 +580,27 @@ function App() {
     return `$${value.toFixed(2)}`;
   }
 
-  if (isConnectorDetailsPage) {
+  function navigateToPage(pageName) {
+    const nextPath = pageRoutes[pageName] || pageRoutes.Pricing;
+    if (location.pathname !== nextPath) {
+      navigate(nextPath);
+    }
+  }
+
+  if (location.pathname === "/") {
+    return <Navigate to={pageRoutes.Pricing} replace />;
+  }
+
+  if (location.pathname.startsWith("/connector-details/")) {
     return (
-      <ConnectorDetailsPage
-        source={connectorDetailsSource}
-        productId={connectorDetailsProductId}
-      />
+      <Routes>
+        <Route path="/connector-details/:source" element={<ConnectorDetailsRoute />} />
+      </Routes>
     );
+  }
+
+  if (!isAdminRoute) {
+    return <Navigate to={pageRoutes.Pricing} replace />;
   }
 
   return (
@@ -596,7 +614,7 @@ function App() {
                 key={item}
                 type="button"
                 className={`menu-item ${activePage === item ? "active" : ""}`}
-                onClick={() => setActivePage(item)}
+                onClick={() => navigateToPage(item)}
               >
                 {item}
               </button>
