@@ -79,6 +79,8 @@ async def search_by_connector(
                                 "score": max(item.score, int(match_percentage)),
                                 "confidence": confidence,
                                 "why": f"KMS attribute match {match_percentage:.2f}% using payload fields.",
+                                "matched_attributes": match_breakdown["matched_attributes"],
+                                "unmatched_attributes": match_breakdown["unmatched_attributes"],
                             }
                         )
                     )
